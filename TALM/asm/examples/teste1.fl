@@ -1,0 +1,10 @@
+const c1, 10
+const c2, 5
+
+add sum1, c1, c2
+
+const c3, 7
+
+addi sum2, c3, 0x77
+
+

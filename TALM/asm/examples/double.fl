@@ -1,0 +1,6 @@
+dconst da, 2.5
+
+dconst db, 2.6
+
+
+dadd soma, da, db

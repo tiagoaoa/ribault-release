@@ -1,0 +1,22 @@
+const a, NUM_TASKS
+const b, 5
+placeinpe(0, "DYNAMIC")
+{i=0..NUM_TASKS-1} const tid${i}, ${i}
+
+addi soma, a, 10
+
+varprob("lt", 0.9)
+lthan lt, soma, b
+
+
+steer st, lt, a
+steer st2, lt, b
+
+placeinpe(0, "STATIC")
+{i=0..self.number_of_tasks-2} addi soma${i}, tid${i}, 5
+
+add segsoma, tid${0..1}
+
+addi maisum, [st.t,st2.f], 1
+
+

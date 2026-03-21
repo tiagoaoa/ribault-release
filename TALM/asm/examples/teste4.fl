@@ -1,0 +1,6 @@
+const c1, 10
+const c2, 5
+placeinpe(1) 
+add a1, c1, c2
+placeinpe(0)
+addi a2, a1, 7

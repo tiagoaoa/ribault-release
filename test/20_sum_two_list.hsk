@@ -1,0 +1,8 @@
+sumTwo lst =
+  case lst of
+    [x,y] -> x + y
+   -- única alternativa que soma os dois primeiros
+    _     -> 0
+       -- fallback para qualquer outro padrão
+
+main = sumTwo [10,15]

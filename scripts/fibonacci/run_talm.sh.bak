@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================
+# fibonacci/run_talm.sh — TALM Fibonacci benchmark runner
+# Generates .hsk, compiles to .fl, assembles, runs with interp
+# ============================================================
+
+N_CSV=""; CUTOFF_CSV=""; REPS=1
+PROCS_CSV=""; OUTROOT=""; TAG="fib_talm"
+INTERP=""; ASM_ROOT=""; CODEGEN_ROOT=""
+PY2="${PY2:-python3}"
+PY3="${PY3:-python3}"
+
+usage(){
+  echo "uso: $0 --N \"30,35,...\" --cutoff \"15,20,...\" --reps R --procs \"1,2,...\""
+  echo "        --interp PATH --asm-root PATH --codegen PATH --outroot DIR [--tag TAG]"
+  exit 2
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --N)       N_CSV="$2"; shift 2;;
+    --cutoff)  CUTOFF_CSV="$2"; shift 2;;
+    --reps)    REPS="$2"; shift 2;;
+    --procs)   PROCS_CSV="$2"; shift 2;;
+    --interp)  INTERP="$2"; shift 2;;
+    --asm-root) ASM_ROOT="$2"; shift 2;;
+    --codegen) CODEGEN_ROOT="$2"; shift 2;;
+    --outroot) OUTROOT="$2"; shift 2;;
+    --tag)     TAG="$2"; shift 2;;
+    *) usage;;
+  esac
+done
+
+[[ -n "$N_CSV" && -n "$CUTOFF_CSV" && -n "$PROCS_CSV" && -n "$INTERP" && -n "$ASM_ROOT" && -n "$CODEGEN_ROOT" && -n "$OUTROOT" ]] || usage
+
+IFS=',' read -r -a NS      <<< "$N_CSV"
+IFS=',' read -r -a CUTOFFS  <<< "$CUTOFF_CSV"
+IFS=',' read -r -a PROCS    <<< "$PROCS_CSV"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GEN_PY="$SCRIPT_DIR/gen_talm_input.py"
+CODEGEN="$CODEGEN_ROOT/codegen"
+
+[[ -x "$INTERP" ]]   || { echo "[ERRO] interp not executable: $INTERP"; exit 1; }
+[[ -x "$CODEGEN" ]]  || { echo "[ERRO] codegen not found: $CODEGEN"; exit 1; }
+[[ -f "$ASM_ROOT/assembler.py" ]] || { echo "[ERRO] assembler.py not found in: $ASM_ROOT"; exit 1; }
+
+echo "[env ] INTERP=${INTERP} ; CODEGEN=${CODEGEN}"
+
+mkdir -p "$OUTROOT"
+METRICS="$OUTROOT/metrics_${TAG}.csv"
+echo "variant,N,cutoff,P,rep,seconds,rc" > "$METRICS"
+
+# Compute expected fib values
+declare -A FIB_EXPECTED
+compute_fib() { "$PY3" -c "a,b=0,1
+for _ in range($1): a,b=b,a+b
+print(a)"; }
+
+for N in "${NS[@]}"; do
+  FIB_EXPECTED[$N]="$(compute_fib "$N")"
+  echo "[fib ] expected fib($N) = ${FIB_EXPECTED[$N]}"
+done
+
+TOTAL_RUNS=$(( ${#NS[@]} * ${#CUTOFFS[@]} * ${#PROCS[@]} * REPS ))
+RUN_NUM=0
+
+for N in "${NS[@]}"; do
+  for CUTOFF in "${CUTOFFS[@]}"; do
+    CASE_DIR="$OUTROOT/talm/N_${N}/cutoff_${CUTOFF}"
+    mkdir -p "$CASE_DIR"
+
+    HSK="$CASE_DIR/fib.hsk"
+    FL="$CASE_DIR/fib.fl"
+    PREFIX="$CASE_DIR/fib"
+
+    # Generate .hsk
+    "$PY3" "$GEN_PY" --out "$HSK" --N "$N" --cutoff "$CUTOFF"
+
+    # Codegen: .hsk -> .fl
+    "$CODEGEN" "$HSK" > "$FL" 2>/dev/null
+
+    for P in "${PROCS[@]}"; do
+      # Assemble with P PEs
+      PREFIX_P="$CASE_DIR/fib_P${P}"
+      pushd "$ASM_ROOT" >/dev/null
+        "$PY2" assembler.py -a -n "$P" -o "$PREFIX_P" "$FL" >/dev/null 2>&1
+      popd >/dev/null
+
+      FLB="${PREFIX_P}.flb"
+      PLA="${PREFIX_P}.pla"
+      [[ -f "$FLB" ]] || { echo "[ERRO] .flb not found: $FLB"; continue; }
+
+      for ((rep=1; rep<=REPS; rep++)); do
+        RUN_NUM=$((RUN_NUM + 1))
+        local_rc=0
+        outlog="$CASE_DIR/run_P${P}_rep${rep}.out"
+
+        set +e
+        "$INTERP" "$P" "$FLB" "$PLA" >"$outlog" 2>/dev/null
+        local_rc=$?
+        set -e
+
+        secs="NaN"
+        if [[ $local_rc -eq 0 ]]; then
+          # Extract EXEC_TIME_S from interp output
+          secs="$(awk -F= '/^EXEC_TIME_S=/{print $2}' "$outlog")"
+          [[ -z "$secs" ]] && secs="$(awk -F= '/^RUNTIME_SEC=/{print $2}' "$outlog")"
+
+          # Check result
+          result="$(awk -F= '/^RESULT=/{print $2}' "$outlog")"
+          expected="${FIB_EXPECTED[$N]}"
+          if [[ "$result" != "$expected" ]]; then
+            >&2 echo "[ERR ] WRONG fib($N): got '$result', expected '$expected'"
+            local_rc=99
+          fi
+        fi
+        [[ -z "$secs" ]] && secs="NaN"
+
+        echo "[${RUN_NUM}/${TOTAL_RUNS}] N=${N} cut=${CUTOFF} P=${P} rep=${rep} -> ${secs}s rc=${local_rc}"
+        echo "super,${N},${CUTOFF},${P},${rep},${secs},${local_rc}" >> "$METRICS"
+      done
+    done
+  done
+done
+
+echo "[DONE] ${TOTAL_RUNS} runs; metrics: $METRICS"

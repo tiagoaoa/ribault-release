@@ -1,0 +1,35 @@
+-- Vector sum with multiple supers (Trebuchet-style structure)
+
+-- super 1: single, builds base vector [0 .. 99]
+init_vec dummy =
+  super single input (dummy) output (xs)
+#BEGINSUPER
+    xs = fromList [0 .. 99]
+#ENDSUPER
+
+-- super 2: parallel, builds encoded (a,b) pairs where b = a + 1
+fill_pairs xs =
+  super parallel input (xs) output (pairs)
+#BEGINSUPER
+    -- xs :: [Int64]
+    -- each element becomes encPair a (a+1)
+    pairs = fromList (map (\x -> encPair x (x + 1)) (toList xs))
+#ENDSUPER
+
+-- super 3: parallel, computes c[i] = a[i] + b[i]
+-- here "pairs" is [Int64], each Int64 encodes a pair
+add_pairs pairs =
+  super parallel input (pairs) output (cs)
+#BEGINSUPER
+    cs = fromList (map (\p -> fstDec p + sndDec p) (toList pairs))
+#ENDSUPER
+
+-- super 4: single, just returns the final vector (printing is done outside supers)
+print_vec cs =
+  super single input (cs) output (cs_out)
+#BEGINSUPER
+    cs_out = cs
+#ENDSUPER
+
+main =
+  print_vec (add_pairs (fill_pairs (init_vec [])))

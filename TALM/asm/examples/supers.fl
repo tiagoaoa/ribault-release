@@ -1,0 +1,12 @@
+superinst("processa", 0, 2, False)
+const ca, 10
+
+
+{i=0..NUM_TASKS-1} processa proc${i}, ca
+
+processa proc10, proc1, ca
+
+
+addi soma, proc0, 2
+
+add soma2, proc1, proc3

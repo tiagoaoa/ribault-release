@@ -1,0 +1,86 @@
+-- Merge Sort in the compiled functional subset
+-- Goal:
+--  - Keep the parallel structure in the pure subset (DF graph can fork).
+--  - Push only the small-grain full sort into a SUPER at the cutoff.
+--  - Compute len once at the root
+--    carry sizes down.
+
+len xs = case xs of
+  []     -> 0
+
+  (_:ys) -> 1 + len ys
+
+p = 4
+
+merge xs ys = case xs of
+  [] -> ys
+
+  (x:xt) -> case ys of
+    [] -> xs
+
+    (y:yt) -> if x <= y
+              then x : merge xt ys
+              else y : merge xs yt
+
+splitCount lst = case lst of
+  [] -> ([], ([], (0, 0)))
+
+  (x:[]) -> ([x], ([], (1, 0)))
+
+  x:y:zs ->
+    case splitCount zs of
+      (xs, (ys, (nl, nr))) -> (x:xs, (y:ys, (nl + 1, nr + 1)))
+
+-- SUPER: full merge sort for small lists
+ms_super lst =
+  super single input (lst) output (sorted)
+#BEGINSUPER
+    sorted =
+      let
+        hlist = toList lst
+
+        forceList []     = ()
+        forceList (_:xs) = forceList xs
+
+        splitLocal []         = ([], [])
+        splitLocal [x]        = ([x], [])
+        splitLocal (x:y:rest) =
+          let (xs, ys) = splitLocal rest
+          in (x:xs, y:ys)
+
+        mergeLocal [] ys        = ys
+        mergeLocal xs []        = xs
+        mergeLocal (x:xt) (y:yt)
+          | x <= y              = x : mergeLocal xt (y:yt)
+          | otherwise           = y : mergeLocal (x:xt) yt
+
+        ms []  = []
+        ms [x] = [x]
+        ms xs  =
+          let (l, r) = splitLocal xs
+              l' = ms l
+              r' = ms r
+          in forceList l' `par` (forceList r' `pseq` mergeLocal l' r')
+      in
+        fromList (ms hlist)
+#ENDSUPER
+
+mergeSort0 lst =
+  let n0 = len lst
+
+  in mergeSortT n0 n0 lst
+
+mergeSortT n0 n lst = case lst of
+  []     -> []
+
+  (x:[]) -> [x]
+
+  _      ->
+    if n <= (n0 / p)
+    then ms_super lst
+    else
+      case splitCount lst of
+        (left, (right, (nl, nr))) ->
+          merge (mergeSortT n0 nl left) (mergeSortT n0 nr right)
+
+main = mergeSort0 [34,7,23,32,5,62,1,9,8,4,3,11]

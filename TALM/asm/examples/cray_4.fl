@@ -1,0 +1,90 @@
+const yres, 600
+//const yres, 2
+const cy, 0
+const nthreads, 4
+
+const threadid0, 0
+const threadid1, 1
+const threadid2, 2
+const threadid3, 3
+
+superinst('super0', 0, 6, False)
+superinst('saida', 1, 0, False)
+superinst('render', 2, 1, False)
+
+
+
+
+
+super0 su0, nthreads
+
+
+inctag incy, [cy,ay]
+
+inctag incxres, [su0.2, stxres.t]
+inctag incyres, [yres, styres.t]
+inctag incpxls, [su0.0, stpxls.t]
+inctag incsmpls, [su0.4, stsmpls.t]
+
+inctag inctid0, [threadid0, sttid0.t]
+inctag inctid1, [threadid1, sttid1.t]
+inctag inctid2, [threadid2, sttid2.t]
+inctag inctid3, [threadid3, sttid3.t]
+
+inctag incnt, [nthreads, stnt.t]
+
+
+
+lthan lty, incy, incyres
+
+steer sty, lty, incy
+
+steer stxres, lty, incxres
+steer styres, lty, incyres
+
+steer stpxls, lty, incpxls
+steer stsmpls, lty, incsmpls
+steer sttid0, lty, inctid0
+steer sttid1, lty, inctid1
+steer sttid2, lty, inctid2
+steer sttid3, lty, inctid3
+
+steer stnt, lty, incnt
+
+
+addi ay, sty.t, 1
+
+
+//render rd0, su0.2, su0.3, su0.0, su0.4, threadid0, nthreads, sty.t
+render rd0, incxres, incyres, incpxls, incsmpls, inctid0, incnt, sty.t
+render rd1, incxres, incyres, incpxls, incsmpls, inctid1, incnt, sty.t
+render rd2, incxres, incyres, incpxls, incsmpls, inctid2, incnt, sty.t
+render rd3, incxres, incyres, incpxls, incsmpls, inctid3, incnt, sty.t
+//render rd1, su0.2, su0.3, su0.0, su0.4, threadid1, nthreads, sty.t
+
+//mul testa, rd0.0, lty
+
+addi menosum, incyres, -1
+equal eqy, incy, menosum
+
+steer strd0, eqy, rd0.0
+steer strd1, eqy, rd1.0
+steer strd2, eqy, rd2.0
+steer strd3, eqy, rd3.0
+
+
+
+
+inctagi itout0, strd0.t, -600
+inctagi itout1, strd1.t, -600
+inctagi itout2, strd2.t, -600
+inctagi itout3, strd3.t, -600
+
+
+
+
+
+saida sai0, su0.0, su0.1, su0.5, itout0, itout1, itout2, itout3
+
+
+

@@ -1,0 +1,21 @@
+const a, NUM_TASKS
+const b, 5
+placeinpe(0, "DYNAMIC")
+{i=0..NUM_TASKS-1} const tid${i}, ${i}
+
+addi soma, a, 10
+
+varprob("lt", 0.9)
+lthan lt, soma, b
+
+
+steer st0, lt, tsk0
+steer st1, lt, tsk1
+superinst("bloco", 0, 1, False)
+{i=0..NUM_TASKS-1} bloco tsk${i}, tid${i}
+
+add segsoma, tid${0..1}
+
+addi maisum, [st0.t,st1.f], 1
+
+

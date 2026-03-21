@@ -1,0 +1,19 @@
+
+const c1, 1
+const c2, 2
+
+
+lthan lt, c1, c2
+
+steer st1, lt, c1
+steer st2, lt, c2
+
+
+//super su1, [a1, a2], [st1.t, st2.f], c1, c2
+super su1, 0, 2, [st1.t, st2.f], c1, c2 
+//SuperInstruction number 0, with 2 outputs and 3 source operands (the first one can come from one of the two steers)
+
+addi sum, su1.0, 5
+
+
+

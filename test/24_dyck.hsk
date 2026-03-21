@@ -1,0 +1,146 @@
+-- dyck_path.hsk  (index-based, unrolled tree, auto-generated)
+-- N=10000  P=8  IMB=0  DELTA=0
+-- 8 leaves, no recursion
+
+-- SUPER: analyse elements [start .. start+count-1] of the Dyck sequence
+-- Input:  sc = start * SHIFT + count  (packed literal)
+-- Output: packed result = (tot + OFFSET) * RANGE + (mn + OFFSET)
+analyseRange sc =
+  super single input (sc) output (res)
+#BEGINSUPER
+    res =
+      let
+        sh     = 10001
+        start  = sc `div` sh
+        cnt    = sc `mod` sh
+        endIdx = start + cnt
+        ntot   = 10000
+        d      = 0
+        off    = 10000
+        rng    = 20001
+        gen i  = if i < ntot
+                 then (if mod i 2 == 0 then 1 else -1)
+                 else (if d > 0 then 1 else -1)
+        go s mn i
+          | i >= endIdx = (s + off) * rng + (mn + off)
+          | otherwise   =
+              let x   = gen i
+                  s1  = s + x
+                  mn1 = if s1 < mn then s1 else mn
+              in s1 `seq` mn1 `seq` go s1 mn1 (i + 1)
+      in go 0 0 start
+#ENDSUPER
+
+-- SUPER: compute min of two packed values
+-- Input: packed = (a + MINOFF) * MINSH + (b + MINOFF)
+-- Output: min(a, b)
+myMin packed =
+  super single input (packed) output (m)
+#BEGINSUPER
+    m = let minsh = 30001
+            minoff = 20000
+            a = packed `div` minsh - minoff
+            b = packed `mod` minsh - minoff
+        in if a < b then a else b
+#ENDSUPER
+
+-- SUPER: unpack final result, check validity, print
+checkAndPrint packed =
+  super single input (packed) output (out)
+#BEGINSUPER
+    out =
+      let off = 10000
+          rng = 20001
+          tot = packed `div` rng - off
+          mn  = packed `mod` rng - off
+          r   = if tot == 0 then (if mn >= 0 then 1 else 0) else 0
+      in unsafePerformIO (do print r; pure 0)
+#ENDSUPER
+
+-- Main: 8 parallel leaf SUPERs + merge tree
+main =
+  let a0 = analyseRange 1250
+  in let sc1 = 1250 * 10001 + 1250
+  in let a1 = analyseRange sc1
+  in let sc2 = 2500 * 10001 + 1250
+  in let a2 = analyseRange sc2
+  in let sc3 = 3750 * 10001 + 1250
+  in let a3 = analyseRange sc3
+  in let sc4 = 5000 * 10001 + 1250
+  in let a4 = analyseRange sc4
+  in let sc5 = 6250 * 10001 + 1250
+  in let a5 = analyseRange sc5
+  in let sc6 = 7500 * 10001 + 1250
+  in let a6 = analyseRange sc6
+  in let sc7 = 8750 * 10001 + 1250
+  in let a7 = analyseRange sc7
+  in let s_0 = a0 / 20001 - 10000
+  in let m_0 = a0 % 20001 - 10000
+  in let s_1 = a1 / 20001 - 10000
+  in let m_1 = a1 % 20001 - 10000
+  in let s_2 = a2 / 20001 - 10000
+  in let m_2 = a2 % 20001 - 10000
+  in let s_3 = a3 / 20001 - 10000
+  in let m_3 = a3 % 20001 - 10000
+  in let s_4 = a4 / 20001 - 10000
+  in let m_4 = a4 % 20001 - 10000
+  in let s_5 = a5 / 20001 - 10000
+  in let m_5 = a5 % 20001 - 10000
+  in let s_6 = a6 / 20001 - 10000
+  in let m_6 = a6 % 20001 - 10000
+  in let s_7 = a7 / 20001 - 10000
+  in let m_7 = a7 % 20001 - 10000
+  in let ms0 = s_0 + s_1
+  in let vv0 = s_0 + m_1
+  in let lo0 = m_0 + 20000
+  in let ls0 = lo0 * 30001
+  in let vo0 = vv0 + 20000
+  in let mp0 = ls0 + vo0
+  in let mm0 = myMin mp0
+  in let ms1 = s_2 + s_3
+  in let vv1 = s_2 + m_3
+  in let lo1 = m_2 + 20000
+  in let ls1 = lo1 * 30001
+  in let vo1 = vv1 + 20000
+  in let mp1 = ls1 + vo1
+  in let mm1 = myMin mp1
+  in let ms2 = s_4 + s_5
+  in let vv2 = s_4 + m_5
+  in let lo2 = m_4 + 20000
+  in let ls2 = lo2 * 30001
+  in let vo2 = vv2 + 20000
+  in let mp2 = ls2 + vo2
+  in let mm2 = myMin mp2
+  in let ms3 = s_6 + s_7
+  in let vv3 = s_6 + m_7
+  in let lo3 = m_6 + 20000
+  in let ls3 = lo3 * 30001
+  in let vo3 = vv3 + 20000
+  in let mp3 = ls3 + vo3
+  in let mm3 = myMin mp3
+  in let ms4 = ms0 + ms1
+  in let vv4 = ms0 + mm1
+  in let lo4 = mm0 + 20000
+  in let ls4 = lo4 * 30001
+  in let vo4 = vv4 + 20000
+  in let mp4 = ls4 + vo4
+  in let mm4 = myMin mp4
+  in let ms5 = ms2 + ms3
+  in let vv5 = ms2 + mm3
+  in let lo5 = mm2 + 20000
+  in let ls5 = lo5 * 30001
+  in let vo5 = vv5 + 20000
+  in let mp5 = ls5 + vo5
+  in let mm5 = myMin mp5
+  in let ms6 = ms4 + ms5
+  in let vv6 = ms4 + mm5
+  in let lo6 = mm4 + 20000
+  in let ls6 = lo6 * 30001
+  in let vo6 = vv6 + 20000
+  in let mp6 = ls6 + vo6
+  in let mm6 = myMin mp6
+  in let sf_off = ms6 + 10000
+  in let sf_sc = sf_off * 20001
+  in let mf_off = mm6 + 10000
+  in let final_packed = sf_sc + mf_off
+  in checkAndPrint final_packed

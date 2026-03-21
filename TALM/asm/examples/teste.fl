@@ -1,0 +1,11 @@
+
+
+const c1, 10
+
+const c2, 20
+
+add sum1, c1, c2
+
+const c3, 11
+
+addi sum2, c3, 2

@@ -1,0 +1,2 @@
+-- Operator precedence: result should be 14
+main = 2 + 3 * 4

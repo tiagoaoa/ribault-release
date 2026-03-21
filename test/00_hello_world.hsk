@@ -1,0 +1,47 @@
+-- Distributed Hello World using only a final super for printing
+
+-- Each place contributes exactly 2 letters (as ASCII codes)
+p0 = [72, 101]  -- He
+p1 = [108, 108] -- ll
+p2 = [111, 32]  -- o 
+p3 = [87, 111]  -- Wo
+p4 = [114, 108] -- rl
+p5 = [100, 33]  -- d!
+
+hello_codes =
+  case p0 of
+    a:rest0 ->
+      case rest0 of
+        b:[] ->
+          case p1 of
+            c:rest1 ->
+              case rest1 of
+                d:[] ->
+                  case p2 of
+                    e:rest2 ->
+                      case rest2 of
+                        f:[] ->
+                          case p3 of
+                            g:rest3 ->
+                              case rest3 of
+                                h:[] ->
+                                  case p4 of
+                                    i:rest4 ->
+                                      case rest4 of
+                                        j:[] ->
+                                          case p5 of
+                                            k:rest5 ->
+                                              case rest5 of
+                                                l:[] -> a : b : c : d : e : f : g : h : i : j : k : l : []
+
+print_final cs =
+  super single input (cs) output (out)
+#BEGINSUPER
+    out = unsafePerformIO
+      (do
+        let s = (map (toEnum . fromIntegral) (toList cs)) :: String
+        print s
+        pure (fromList [0]))
+#ENDSUPER
+
+main = print_final hello_codes

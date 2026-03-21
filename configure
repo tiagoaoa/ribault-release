@@ -1,0 +1,367 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────
+# configure — Ribault + TALM build system configuration
+# ──────────────────────────────────────────────────────────────
+#
+# Checks all required and optional dependencies, then generates
+# config.mk for inclusion by the Makefile.
+#
+# Usage:  ./configure [OPTIONS]
+#
+# Options:
+#   --prefix=DIR            Installation prefix        (default: /usr/local)
+#   --ghc=PATH              Path to ghc                (default: ghc)
+#   --alex=PATH             Path to alex               (default: alex)
+#   --happy=PATH            Path to happy              (default: happy)
+#   --gcc=PATH              Path to gcc/cc             (default: gcc)
+#   --python3=PATH          Path to python3            (default: python3)
+#   --dot=PATH              Path to dot (Graphviz)     (default: dot)
+#   --with-supers-rts-a=SZ  GHC RTS -A for supers      (default: 256m)
+#   --disable-dot           Skip Graphviz entirely
+#   --help                  Show this help
+#
+set -euo pipefail
+
+# ── Defaults ─────────────────────────────────────────────────
+PREFIX="/usr/local"
+GHC="ghc"
+ALEX="alex"
+HAPPY="happy"
+GCC="gcc"
+PYTHON3="python3"
+DOT="dot"
+SUPERS_RTS_A="256m"
+DISABLE_DOT=0
+
+# ── Colors ───────────────────────────────────────────────────
+if [ -t 1 ]; then
+    R='\033[0;31m' G='\033[0;32m' Y='\033[0;33m'
+    C='\033[0;36m' B='\033[1m'    Z='\033[0m'
+else
+    R='' G='' Y='' C='' B='' Z=''
+fi
+
+ok()   { printf "  ${G}ok${Z}      %s\n" "$1"; }
+warn() { printf "  ${Y}missing${Z} %s  (%s)\n" "$1" "$2"; WARNINGS=$((WARNINGS+1)); }
+fail() { printf "  ${R}ERROR${Z}   %s\n" "$1"; ERRORS=$((ERRORS+1)); }
+
+ERRORS=0
+WARNINGS=0
+
+# ── Parse arguments ──────────────────────────────────────────
+for arg in "$@"; do
+    case "$arg" in
+        --prefix=*)          PREFIX="${arg#*=}" ;;
+        --ghc=*)             GHC="${arg#*=}" ;;
+        --alex=*)            ALEX="${arg#*=}" ;;
+        --happy=*)           HAPPY="${arg#*=}" ;;
+        --gcc=*)             GCC="${arg#*=}" ;;
+        --python3=*)         PYTHON3="${arg#*=}" ;;
+        --dot=*)             DOT="${arg#*=}" ;;
+        --with-supers-rts-a=*) SUPERS_RTS_A="${arg#*=}" ;;
+        --disable-dot)       DISABLE_DOT=1 ;;
+        --help|-h)
+            sed -n '/^# Usage:/,/^[^#]/{ /^#/s/^# //p }' "$0"
+            exit 0 ;;
+        *) echo "Unknown option: $arg (try --help)"; exit 1 ;;
+    esac
+done
+
+echo ""
+printf "${B}Configuring Ribault + TALM${Z}\n"
+echo "══════════════════════════════════════════════════════════"
+
+# ─────────────────────────────────────────────────────────────
+# Helper: find a tool, check minimum version
+# ─────────────────────────────────────────────────────────────
+find_tool() {
+    local label="$1" cmd="$2" required="$3" min_ver="${4:-}" ver_flag="${5:---version}"
+    printf "checking %-14s ... " "$label"
+
+    local path
+    path="$(command -v "$cmd" 2>/dev/null || true)"
+    if [ -z "$path" ]; then
+        if [ "$required" = "yes" ]; then
+            fail "$label not found ($cmd)"
+        else
+            warn "$label" "optional"
+        fi
+        eval "HAVE_${label}=0"
+        eval "PATH_${label}="
+        eval "VER_${label}="
+        return 1
+    fi
+
+    local ver
+    ver="$("$cmd" $ver_flag 2>&1 | head -1 | grep -oP '\d+\.\d+[\.\d]*' | head -1 || echo unknown)"
+
+    # Version check
+    if [ -n "$min_ver" ] && [ "$ver" != "unknown" ]; then
+        if ! printf '%s\n%s\n' "$min_ver" "$ver" | sort -V -C 2>/dev/null; then
+            fail "$label $ver found, need >= $min_ver"
+            return 1
+        fi
+    fi
+
+    ok "$path  ($ver)"
+    eval "HAVE_${label}=1"
+    eval "PATH_${label}=$path"
+    eval "VER_${label}=$ver"
+    return 0
+}
+
+# ══════════════════════════════════════════════════════════════
+# 1. Required tools
+# ══════════════════════════════════════════════════════════════
+echo ""
+printf "${C}── Required tools ──${Z}\n"
+
+find_tool GHC     "$GHC"     yes "9.0" "--numeric-version"
+find_tool ALEX    "$ALEX"    yes
+find_tool HAPPY   "$HAPPY"   yes
+find_tool GCC     "$GCC"     yes
+find_tool PYTHON3 "$PYTHON3" yes "3.6" "--version"
+find_tool MAKE    "make"     yes "--version"
+
+# ══════════════════════════════════════════════════════════════
+# 2. GHC packages
+# ══════════════════════════════════════════════════════════════
+echo ""
+printf "${C}── GHC packages ──${Z}\n"
+
+# Derive ghc-pkg path
+GHC_PKG="ghc-pkg"
+if [ -n "${PATH_GHC:-}" ]; then
+    d="$(dirname "$PATH_GHC")"
+    n="$(basename "$PATH_GHC")"
+    if [ "$n" != "ghc" ]; then
+        suffix="${n#ghc}"
+        [ -x "$d/ghc-pkg${suffix}" ] && GHC_PKG="$d/ghc-pkg${suffix}"
+    fi
+fi
+
+REQUIRED_PKGS="base containers mtl array text"
+OPTIONAL_PKGS="ghc-prim ghc-bignum integer-gmp"
+
+for pkg in $REQUIRED_PKGS; do
+    printf "  %-20s ... " "$pkg"
+    if "$GHC_PKG" list "$pkg" 2>/dev/null | grep -q "$pkg"; then
+        printf "${G}ok${Z}\n"
+    else
+        fail "GHC package '$pkg' not found"
+    fi
+done
+
+HAS_BIGNUM=0
+for pkg in $OPTIONAL_PKGS; do
+    printf "  %-20s ... " "$pkg"
+    if "$GHC_PKG" list "$pkg" 2>/dev/null | grep -q "$pkg"; then
+        printf "${G}ok${Z}\n"
+        [ "$pkg" = "ghc-bignum" ] && HAS_BIGNUM=1
+    else
+        printf "${Y}not found${Z} (may not be needed)\n"
+    fi
+done
+
+# ══════════════════════════════════════════════════════════════
+# 3. GHC RTS (for libsupers.so)
+# ══════════════════════════════════════════════════════════════
+echo ""
+printf "${C}── GHC Runtime System ──${Z}\n"
+
+GHC_VER="${VER_GHC:-unknown}"
+GHC_LIBDIR=""
+RTS_LIBDIR=""
+RTS_INCDIRS=""
+RTS_SO=""
+
+if [ -n "${PATH_GHC:-}" ]; then
+    printf "  ghc --print-libdir    ... "
+    GHC_LIBDIR="$("$PATH_GHC" --print-libdir 2>/dev/null || true)"
+    if [ -n "$GHC_LIBDIR" ] && [ -d "$GHC_LIBDIR" ]; then
+        ok "$GHC_LIBDIR"
+    else
+        warn "ghc libdir" "supers may fail"
+    fi
+
+    printf "  ghc-pkg rts lib-dirs  ... "
+    RTS_LIBDIR="$("$GHC_PKG" field rts library-dirs --simple-output 2>/dev/null || true)"
+    if [ -n "$RTS_LIBDIR" ] && [ -d "$RTS_LIBDIR" ]; then
+        ok "$RTS_LIBDIR"
+    else
+        warn "RTS library-dirs" "supers may fail"
+    fi
+
+    printf "  ghc-pkg rts inc-dirs  ... "
+    RTS_INCDIRS="$("$GHC_PKG" field rts include-dirs --simple-output 2>/dev/null || true)"
+    if [ -n "$RTS_INCDIRS" ]; then
+        ok "$(echo "$RTS_INCDIRS" | tr ' ' ':')"
+    else
+        warn "RTS include-dirs" "supers may fail"
+    fi
+
+    printf "  libHSrts*.so          ... "
+    if [ -n "$RTS_LIBDIR" ]; then
+        BASE_DIR="$(dirname "$RTS_LIBDIR")"
+        RTS_SO="$(ls "$BASE_DIR"/libHSrts*thr*ghc${GHC_VER}.so 2>/dev/null | grep -v _debug | head -1 || true)"
+        [ -z "$RTS_SO" ] && RTS_SO="$(ls "$BASE_DIR"/libHSrts*ghc${GHC_VER}.so 2>/dev/null | grep -v _debug | head -1 || true)"
+        [ -z "$RTS_SO" ] && RTS_SO="$(ls "$RTS_LIBDIR"/libHSrts*ghc${GHC_VER}.so 2>/dev/null | grep -v _debug | head -1 || true)"
+    fi
+    if [ -n "$RTS_SO" ] && [ -f "$RTS_SO" ]; then
+        ok "$RTS_SO"
+    else
+        warn "libHSrts .so" "supers build may fail"
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════
+# 4. Optional tools
+# ══════════════════════════════════════════════════════════════
+echo ""
+printf "${C}── Optional tools ──${Z}\n"
+
+if [ "$DISABLE_DOT" -eq 0 ]; then
+    find_tool DOT "$DOT" no
+else
+    HAVE_DOT=0; PATH_DOT=; VER_DOT=
+    printf "  dot                  ... ${Y}disabled${Z} (--disable-dot)\n"
+fi
+find_tool TASKSET  "taskset"  no
+find_tool BC       "bc"       no
+find_tool LDD      "ldd"      no
+
+# ══════════════════════════════════════════════════════════════
+# 5. TALM / Trebuchet
+# ══════════════════════════════════════════════════════════════
+echo ""
+printf "${C}── TALM / Trebuchet ──${Z}\n"
+
+TALM_DIR="./TALM"
+INTERP_PREBUILT=0
+
+printf "  TALM directory        ... "
+if [ -d "$TALM_DIR" ]; then
+    ok "$TALM_DIR"
+else
+    fail "TALM/ not found (is the release package complete?)"
+fi
+
+printf "  TALM assembler.py     ... "
+if [ -f "$TALM_DIR/asm/assembler.py" ]; then
+    ok "$TALM_DIR/asm/assembler.py"
+else
+    fail "assembler.py missing"
+fi
+
+printf "  Trebuchet interp.c    ... "
+if [ -f "$TALM_DIR/interp/interp.c" ]; then
+    ok "$TALM_DIR/interp/interp.c"
+else
+    fail "interp.c missing"
+fi
+
+printf "  Trebuchet Makefile    ... "
+if [ -f "$TALM_DIR/interp/Makefile" ]; then
+    ok "$TALM_DIR/interp/Makefile"
+else
+    fail "TALM/interp/Makefile missing"
+fi
+
+printf "  Trebuchet binary      ... "
+if [ -x "$TALM_DIR/interp/interp" ]; then
+    ok "$TALM_DIR/interp/interp (prebuilt)"
+    INTERP_PREBUILT=1
+else
+    printf "${Y}not built${Z} — will compile during 'make interp'\n"
+fi
+
+# ══════════════════════════════════════════════════════════════
+# 6. Platform summary
+# ══════════════════════════════════════════════════════════════
+echo ""
+printf "${C}── Platform ──${Z}\n"
+ARCH="$(uname -m)"
+OS="$(uname -s)"
+KERNEL="$(uname -r)"
+NPROC="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+PHYS_CORES="$(lscpu 2>/dev/null | awk '/^Core\(s\) per socket:/{c=$4} /^Socket\(s\):/{s=$2} END{if(c&&s) print c*s}' || echo "$NPROC")"
+printf "  %-24s %s\n" "Architecture:" "$ARCH"
+printf "  %-24s %s %s\n" "OS:" "$OS" "$KERNEL"
+printf "  %-24s %s (%s physical)\n" "CPU cores:" "$NPROC" "$PHYS_CORES"
+
+# ══════════════════════════════════════════════════════════════
+# Verdict
+# ══════════════════════════════════════════════════════════════
+echo ""
+echo "══════════════════════════════════════════════════════════"
+if [ "$ERRORS" -gt 0 ]; then
+    printf "${R}${B}FAILED${Z} — %d error(s), %d warning(s)\n" "$ERRORS" "$WARNINGS"
+    echo ""
+    echo "Fix the errors above and re-run ./configure"
+    exit 1
+fi
+if [ "$WARNINGS" -gt 0 ]; then
+    printf "${Y}${B}OK with %d warning(s)${Z}\n" "$WARNINGS"
+else
+    printf "${G}${B}OK${Z}\n"
+fi
+echo "══════════════════════════════════════════════════════════"
+
+# ══════════════════════════════════════════════════════════════
+# Generate config.mk
+# ══════════════════════════════════════════════════════════════
+cat > config.mk << CFGEOF
+# Generated by ./configure — $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+# Re-run ./configure to regenerate.
+
+PREFIX       := $PREFIX
+CONFIGURED   := 1
+
+# ── Tools ──
+GHC          := ${PATH_GHC:-$GHC}
+GHC_VERSION  := $GHC_VER
+ALEX         := ${PATH_ALEX:-$ALEX}
+HAPPY        := ${PATH_HAPPY:-$HAPPY}
+GCC          := ${PATH_GCC:-$GCC}
+CC           := ${PATH_GCC:-$GCC}
+PYTHON3      := ${PATH_PYTHON3:-$PYTHON3}
+DOT          := ${PATH_DOT:-$DOT}
+GHC_PKG      := $GHC_PKG
+
+# ── TALM ──
+TALM_DIR     := $TALM_DIR
+
+# ── GHC internals ──
+GHC_LIBDIR   := $GHC_LIBDIR
+RTS_LIBDIR   := $RTS_LIBDIR
+RTS_INCDIRS  := $RTS_INCDIRS
+RTS_SO       := $RTS_SO
+HAS_BIGNUM   := $HAS_BIGNUM
+
+# ── Platform ──
+ARCH         := $ARCH
+OS           := $OS
+NPROC        := $NPROC
+PHYS_CORES   := $PHYS_CORES
+
+# ── Features ──
+HAS_DOT      := ${HAVE_DOT:-0}
+HAS_TASKSET  := ${HAVE_TASKSET:-0}
+HAS_BC       := ${HAVE_BC:-0}
+HAS_LDD      := ${HAVE_LDD:-0}
+SUPERS_RTS_A := $SUPERS_RTS_A
+CFGEOF
+
+echo ""
+echo "Generated config.mk"
+echo ""
+cat << EOF
+Next steps:
+
+  make                # Build Ribault compiler + Trebuchet interpreter
+  make test           # Run correctness tests on all test/*.hsk
+  make test-execute   # Tests + execute on Trebuchet
+  make bench          # Performance benchmarks
+  sudo make install   # Install to $PREFIX
+
+EOF

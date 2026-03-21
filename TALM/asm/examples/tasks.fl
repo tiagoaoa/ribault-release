@@ -1,0 +1,11 @@
+const a, NUM_TASKS
+placeinpe(0, "DYNAMIC")
+{i=0..NUM_TASKS-1} const tid${i}, ${i}
+
+addi soma, a, 10
+
+placeinpe(0, "STATIC")
+{i=0..self.number_of_tasks-2} addi soma${i}, tid${i}, 5
+
+add segsoma, tid${0..1}
+

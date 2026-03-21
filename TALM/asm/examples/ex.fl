@@ -1,0 +1,18 @@
+defconst("N", "10")
+const c1, N
+
+const c2, 5
+
+fconst f1, 1.0
+
+addi sum1, c1, 100
+muli mul1, sum1, 2
+
+
+fmuli mulf1, f1, 2.0
+
+
+add sum2, c2, mul1 
+
+
+

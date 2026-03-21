@@ -1,0 +1,26 @@
+const csum, 1
+
+const a, 10
+
+const ci, 0
+
+//const b, 1000000
+const b, 100
+
+inctag inca, [a, sta.t]
+inctag incsum, [csum, asum]
+inctag inci, [ci, ai]
+inctag incb, [b, stb.t]
+lthan lt, inci, incb
+
+steer sti, lt, inci
+
+
+steer sta, lt, inca
+steer stsum, lt, incsum
+
+addi ai, sti.t, 1
+add asum, sta.t, stsum.t 
+
+
+steer stb, lt, incb

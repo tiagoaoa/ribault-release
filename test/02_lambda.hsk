@@ -1,0 +1,5 @@
+-- Lambda expressions
+add = \x y -> x + y
+
+main = add 10 4
+

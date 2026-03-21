@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────
+# ribault — unified CLI for the Ribault compiler + TALM runtime
+# ──────────────────────────────────────────────────────────────
+set -euo pipefail
+
+VERSION="1.0.0"
+
+# Resolve RIBAULT_HOME: where the tools live
+if [ -n "${RIBAULT_HOME:-}" ]; then
+    ROOT="$RIBAULT_HOME"
+elif [ -L "$0" ]; then
+    ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+else
+    ROOT="$(cd "$(dirname "$0")" && pwd)"
+fi
+
+# Tool paths (installed or in-tree)
+ANALYSIS="${ROOT}/bin/analysis"
+[ -x "$ANALYSIS" ] || ANALYSIS="${ROOT}/analysis"
+SYNTHESIS="${ROOT}/bin/synthesis"
+[ -x "$SYNTHESIS" ] || SYNTHESIS="${ROOT}/synthesis"
+CODEGEN="${ROOT}/bin/codegen"
+[ -x "$CODEGEN" ] || CODEGEN="${ROOT}/codegen"
+SUPERSGEN="${ROOT}/bin/supersgen"
+[ -x "$SUPERSGEN" ] || SUPERSGEN="${ROOT}/supersgen"
+
+TALM_DIR="${TALM_DIR:-${ROOT}/TALM}"
+INTERP="${TALM_DIR}/interp/interp"
+ASSEMBLER="${TALM_DIR}/asm/assembler.py"
+BUILD_SUPERS="${ROOT}/tools/build_supers.sh"
+[ -x "$BUILD_SUPERS" ] || BUILD_SUPERS="${ROOT}/lib/ribault/tools/build_supers.sh"
+
+usage() {
+    cat << EOF
+Ribault $VERSION — Haskell-to-Dataflow Compiler
+
+Usage:
+  ribault compile  PROG.hsk [--output-dir DIR]
+  ribault run      PROG.hsk [--threads P] [--output-dir DIR]
+  ribault ast      PROG.hsk [--png]
+  ribault df       PROG.hsk [--png]
+  ribault test     [--execute] [--filter PATTERN]
+  ribault bench    [--threads LIST] [--reps N] [--benchmark NAME]
+  ribault info
+  ribault version
+
+Commands:
+  compile    Compile .hsk → TALM assembly (.fl) + super-instructions (libsupers.so)
+  run        Compile + assemble + execute on Trebuchet
+  ast        Generate AST (.dot and optionally .png)
+  df         Generate dataflow graph (.dot and optionally .png)
+  test       Run correctness test suite
+  bench      Run performance benchmarks
+  info       Show tool paths and versions
+  version    Print version
+
+Environment:
+  TALM_DIR       Override TALM location (default: ./TALM or \$RIBAULT_HOME/TALM)
+  RIBAULT_HOME   Override Ribault installation root
+EOF
+    exit 0
+}
+
+cmd_compile() {
+    local hsk="$1"; shift
+    local out_dir="."
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --output-dir|-o) out_dir="$2"; shift 2 ;;
+            *) echo "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    local name
+    name="$(basename "$hsk" .hsk)"
+    mkdir -p "$out_dir"
+
+    echo "[1/4] Parsing and analyzing..."
+    "$ANALYSIS" "$hsk" > /dev/null
+
+    echo "[2/4] Generating dataflow graph..."
+    "$SYNTHESIS" "$hsk" > "$out_dir/${name}.df.dot"
+
+    echo "[3/4] Generating TALM assembly..."
+    "$CODEGEN" "$hsk" > "$out_dir/${name}.fl"
+
+    echo "[4/4] Building super-instructions..."
+    mkdir -p "$out_dir/supers"
+    "$SUPERSGEN" "$hsk" > "$out_dir/supers/Supers.hs"
+    if [ -x "$BUILD_SUPERS" ]; then
+        SUPERS_DIR="$out_dir/supers" bash "$BUILD_SUPERS" "$hsk" "$out_dir/supers/Supers.hs" 2>/dev/null || true
+    fi
+
+    echo ""
+    echo "Output:"
+    echo "  TALM assembly : $out_dir/${name}.fl"
+    echo "  Dataflow graph: $out_dir/${name}.df.dot"
+    [ -f "$out_dir/supers/libsupers.so" ] && echo "  Super library : $out_dir/supers/libsupers.so"
+}
+
+cmd_run() {
+    local hsk="$1"; shift
+    local P=1
+    local out_dir=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --threads|-P)    P="$2"; shift 2 ;;
+            --output-dir|-o) out_dir="$2"; shift 2 ;;
+            *) echo "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    # Use temp dir if no output dir specified
+    if [ -z "$out_dir" ]; then
+        out_dir="$(mktemp -d)"
+        trap "rm -rf '$out_dir'" EXIT
+    fi
+
+    local name
+    name="$(basename "$hsk" .hsk)"
+
+    # Compile
+    cmd_compile "$hsk" --output-dir "$out_dir"
+
+    # Assemble
+    echo ""
+    echo "[asm] Assembling for P=$P PEs..."
+    "$PYTHON3" "$ASSEMBLER" -a -n "$P" -o "$out_dir/$name" "$out_dir/${name}.fl"
+
+    # Find libsupers
+    local libsupers
+    libsupers="$(find "$out_dir" -name 'libsupers.so' 2>/dev/null | head -1)"
+
+    if [ -z "$libsupers" ]; then
+        echo "ERROR: libsupers.so not found — cannot execute"
+        exit 1
+    fi
+
+    # Execute
+    echo "[run] Executing on Trebuchet with P=$P..."
+    echo ""
+
+    local cores
+    if command -v taskset >/dev/null 2>&1 && [ "$P" -gt 1 ]; then
+        cores="$(seq -s, 0 $((P - 1)))"
+        taskset -c "$cores" "$INTERP" "$P" "$out_dir/${name}.flb" "$out_dir/${name}_auto.pla" "$libsupers"
+    else
+        "$INTERP" "$P" "$out_dir/${name}.flb" "$out_dir/${name}_auto.pla" "$libsupers"
+    fi
+}
+
+cmd_ast() {
+    local hsk="$1"; shift
+    local png=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in --png) png=1; shift ;; *) shift ;; esac
+    done
+
+    local name
+    name="$(basename "$hsk" .hsk)"
+    "$ANALYSIS" "$hsk"
+
+    if [ "$png" -eq 1 ]; then
+        "$ANALYSIS" "$hsk" | dot -Tpng -o "${name}.ast.png"
+        echo "  → ${name}.ast.png"
+    fi
+}
+
+cmd_df() {
+    local hsk="$1"; shift
+    local png=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in --png) png=1; shift ;; *) shift ;; esac
+    done
+
+    local name
+    name="$(basename "$hsk" .hsk)"
+    "$SYNTHESIS" "$hsk"
+
+    if [ "$png" -eq 1 ]; then
+        "$SYNTHESIS" "$hsk" | dot -Tpng -o "${name}.df.png"
+        echo "  → ${name}.df.png"
+    fi
+}
+
+cmd_test() {
+    if [ -x "$ROOT/benchmarks/run_tests.sh" ]; then
+        "$ROOT/benchmarks/run_tests.sh" "$@"
+    elif [ -x "$ROOT/share/ribault/benchmarks/run_tests.sh" ]; then
+        "$ROOT/share/ribault/benchmarks/run_tests.sh" "$@"
+    else
+        echo "Test runner not found"
+        exit 1
+    fi
+}
+
+cmd_bench() {
+    if [ -x "$ROOT/benchmarks/run_benchmarks.sh" ]; then
+        "$ROOT/benchmarks/run_benchmarks.sh" --talm-dir "$TALM_DIR" "$@"
+    elif [ -x "$ROOT/share/ribault/benchmarks/run_benchmarks.sh" ]; then
+        "$ROOT/share/ribault/benchmarks/run_benchmarks.sh" --talm-dir "$TALM_DIR" "$@"
+    else
+        echo "Benchmark runner not found"
+        exit 1
+    fi
+}
+
+cmd_info() {
+    echo "Ribault $VERSION"
+    echo ""
+    echo "Tool paths:"
+    for tool in ANALYSIS SYNTHESIS CODEGEN SUPERSGEN INTERP ASSEMBLER; do
+        path="${!tool}"
+        printf "  %-14s %s" "$tool" "$path"
+        if [ -x "$path" ] || [ -f "$path" ]; then
+            printf "  (ok)\n"
+        else
+            printf "  (NOT FOUND)\n"
+        fi
+    done
+    echo ""
+    echo "TALM_DIR: $TALM_DIR"
+    echo "ROOT:     $ROOT"
+    echo ""
+    if command -v ghc >/dev/null 2>&1; then
+        echo "GHC: $(ghc --numeric-version)"
+    fi
+}
+
+cmd_version() {
+    echo "ribault $VERSION"
+}
+
+# ── Detect python3 ───────────────────────────────────────────
+PYTHON3="${PYTHON3:-python3}"
+
+# ── Main dispatch ────────────────────────────────────────────
+[ $# -eq 0 ] && usage
+
+case "$1" in
+    compile)  shift; cmd_compile "$@" ;;
+    run)      shift; cmd_run "$@" ;;
+    ast)      shift; cmd_ast "$@" ;;
+    df)       shift; cmd_df "$@" ;;
+    test)     shift; cmd_test "$@" ;;
+    bench)    shift; cmd_bench "$@" ;;
+    info)     cmd_info ;;
+    version|--version|-v)  cmd_version ;;
+    help|--help|-h)        usage ;;
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'ribault --help' for usage"
+        exit 1
+        ;;
+esac

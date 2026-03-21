@@ -1,0 +1,39 @@
+const c0, 2
+
+const c1, 3
+
+//call addfunc(2,3)
+callgroup('call1', 'addfunc')
+
+callsnd sndc0, c0, call1
+callsnd sndc1, c1, call1
+
+retsnd rtsnd0, c0, call1
+
+
+const c2, 4
+const c3, 5
+
+
+callgroup('call2', 'addfunc')
+
+
+
+callsnd sndc2, c2, call2
+callsnd sndc3, c3, call2
+retsnd rtsnd1, c2, call2
+
+//end of call
+
+
+addi m1, addfunc.call1, 2 //receive the result of addfunc(), the instance called in the callgroup call1
+
+//addfunc(c0, c1)
+add a1, [sndc0, sndc2], [sndc1,sndc3]
+
+addi a2, [sndc0, sndc2], 1
+
+ret addfunc, a1, [rtsnd0, rtsnd1]
+
+//end of addfunc
+

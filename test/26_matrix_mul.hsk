@@ -1,0 +1,88 @@
+-- ===============================================================
+--  MatrixMul.hsk  –  matrix multiplication (Float, pure dataflow)
+-- ===============================================================
+
+-- 1. list utilities ------------------------------------------------
+
+append xs ys = case xs of
+  []      -> ys
+
+  (h:ts)  -> h : append ts ys
+
+-- 2. transpose helpers ---------------------------------------------
+
+heads xss = case xss of
+  []      -> []
+
+  (r:rs)  -> case r of
+    []      -> []
+
+    (h:_)   -> h : heads rs
+
+tails xss = case xss of
+  []      -> []
+
+  (r:rs)  -> case r of
+    []      -> []
+
+    (_:t)   -> t : tails rs
+
+transpose xss = case xss of
+  []      -> []
+
+  (r:_)   -> case r of
+    []      -> []
+
+    _       -> heads xss : transpose (tails xss)
+
+-- 3. dot product ---------------------------------------------------
+
+dot xs ys = case xs of
+  []        -> 0.0
+
+  (x:xs1)   -> case ys of
+    []        -> 0.0
+
+    (y:ys1)   ->
+      (x * y) + dot xs1 ys1
+
+-- 4. row × transposed columns -------------------------------------
+
+rowTimes row colsT = case colsT of
+  []      -> []
+
+  (c:cs)  ->
+    let h  = dot row c in
+    let ts = rowTimes row cs in
+    h : ts
+
+-- 5. matrix multiply ----------------------------------------------
+
+mmult rows colsT = case rows of
+  []       -> []
+
+  (r:rs1)  ->
+    let h  = rowTimes r colsT in
+    let ts = mmult rs1 colsT in
+    h : ts
+
+-- 6. print (super) ------------------------------------------------
+
+print_final xs =
+  super single input (xs) output (out)
+#BEGINSUPER
+    out = unsafePerformIO
+      (do
+        let rows = map toListF (toList xs)
+        print "MatrixMul:"
+        print rows
+        pure (fromList [0]))
+#ENDSUPER
+
+-- 7. main ----------------------------------------------------------
+
+main =
+  let a = [[1.5, 2.25], [3.75, 4.5]] in
+  let b = [[0.5, 1.25], [2.5, 3.5]] in
+  let colsT = transpose b in
+  print_final (mmult a colsT)

@@ -1,0 +1,155 @@
+const ntasks, 2
+const taskid0, 0
+const taskid1, 1
+
+superinst('super0', 0, 5, False)
+super0 s0, ntasks
+
+inctag jloop1, [s0.0,addstj1]
+inctag endjloop1, [s0.1,stendj2.f]
+inctag iloop1, [s0.2,stiini2.f]
+inctag endiloop1, [s0.3,stendi2.f]
+inctag strideloop1, [s0.4,ststride2.f]
+inctag ntasksloop1, [ntasks, st2ntasks.f]
+inctag takid0loop1, [taskid0, st2taskid0.f]
+inctag takid1loop1, [taskid1,  st2taskid1.f]
+
+
+
+lthan compj, jloop1, endjloop1
+
+steer stj1, compj, jloop1
+steer stendj1, compj, endjloop1
+steer sti1, compj, iloop1
+steer stendi1, compj, endiloop1
+steer ststride1, compj, strideloop1
+steer st1ntasks, compj, ntasksloop1
+steer st1taskid0, compj, takid0loop1
+steer st1taskid1, compj, takid1loop1
+
+inctag jloop2, [stj1.t, s2.1]
+inctag endjloop2, [stendj1.t, stendj2.t]
+inctag iloop2, [sti1.t, addsti2]
+inctag iloopini2, [sti1.t, stiini2.t]
+inctag endiloop2, [stendi1.t,stendi2.t]
+inctag strideloop2, [ststride1.t,ststride2.t]
+inctag ntasksloop2, [st1ntasks.t, st2ntasks.t]
+inctag takid0loop2, [st1taskid0.t, st2taskid0.t]
+inctag takid1loop2, [st1taskid1.t, st2taskid1.t]
+
+
+lthan compi, iloop2, endiloop2
+
+steer stj2, compi, jloop2
+steer stendj2, compi, endjloop2
+steer sti2, compi, iloop2
+steer stiini2, compi, iloopini2
+steer stendi2, compi, endiloop2
+steer ststride2, compi, strideloop2
+steer st2ntasks, compi, ntasksloop2
+steer st2taskid0, compi, takid0loop2
+steer st2taskid1, compi, takid1loop2
+
+superinst('super1', 1, 2, False)
+super1 s1, sti2.t, stj2.t
+
+callgroup('call1', 'match')
+callsnd sndntasks, st2ntasks.t, call1
+callsnd sndtaskid0, st2taskid0.t, call1
+callsnd sndtaskid1, st2taskid1.t, call1
+retsnd retid, s1.0, call1
+
+superinst('super2', 2, 2, False)
+super2 s2, sti2.t, stj2.t, match.call1
+
+add addsti2, s2.0, ststride2.t
+add addstj1, stj2.f, ststride2.f
+
+superinst('super3', 3, 1, False)
+super3 s3, stj1.f
+
+
+
+// funcao match
+
+superinst('super4', 4, 1, False)
+super4 s4, sndntasks
+
+inctag lretid, [retid, s2retid.f]
+inctag lmatched, [s4.0, s10.0]
+inctag lzero, [s4.0, s2zero.f]
+inctag lntasks, [sndntasks, s2ntasks.f]
+inctag ltaskid0, [sndtaskid0, s2taskid0.f]
+inctag ltaskid1, [sndtaskid1, s2taskid1.f]
+
+
+equal comp, lmatched, lzero
+
+steer sretid, comp, lretid
+steer smatched, comp, lmatched
+steer szero, comp, lzero
+steer sntasks, comp, lntasks
+steer staskid0, comp, ltaskid0
+steer staskid1, comp, ltaskid1
+
+superinst('super5', 5, 1, False)
+super5 s5, sntasks.t
+
+inctag l2retid, [sretid.t, s2retid.t]
+inctag l2matched, [smatched.t, s2matched.t]
+inctag l2zero, [szero.t, s2zero.t]
+inctag l2ntasks, [sntasks.t, s2ntasks.t]
+inctag l2taskid0, [staskid0.t, s2taskid0.t]
+inctag l2taskid1, [staskid1.t, s2taskid1.t]
+inctag l2nove, [s5.0, s2nove.t]
+inctag l2j, [szero.t, s2j.t]
+inctag l2f1res, [szero.t, nf1res]
+
+equal compe, l2f1res, l2zero
+lthan compl, l2j, l2nove
+band compfor, compe, compl
+
+steer s2retid, compfor, l2retid
+steer s2matched, compfor, l2matched
+steer s2zero, compfor, l2zero
+steer s2ntasks, compfor, l2ntasks
+steer s2taskid0, compfor, l2taskid0
+steer s2taskid1, compfor, l2taskid1
+steer s2nove, compfor, l2nove
+steer s2j, compfor, l2j
+steer s2f1res, compfor, l2f1res
+
+superinst('super6', 6, 1, False)
+super6 s6t0, s2ntasks.t, s2taskid0.t, s2j.t
+super6 s6t1, s2ntasks.t, s2taskid1.t, s2j.t
+
+dadd tnorms6, s6t0.0, s6t1.0
+
+superinst('super7', 7, 1, False)
+super7 s7t0, s2ntasks.t, s2taskid0.t, tnorms6
+super7 s7t1, s2ntasks.t, s2taskid1.t, tnorms6
+
+dadd tnorms7, s7t0.0, s7t1.0
+
+superinst('super8', 8, 1, False)
+super8 s8t0, s2ntasks.t, s2taskid0.t, tnorms7
+super8 s8t1, s2ntasks.t, s2taskid1.t, tnorms7
+
+band tresult, s8t0.0, s8t1.0
+
+superinst('super9', 9, 1, False)
+super9 s9, tresult
+
+band nf1res, s2f1res.t, s9.0
+
+superinst('super10', 10, 1, False)
+super10 s10, s2f1res.f
+
+
+ret match, smatched.f, sretid.f
+
+
+
+
+
+

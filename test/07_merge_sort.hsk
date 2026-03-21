@@ -1,0 +1,44 @@
+-- Merge Sort in the subset of the compiled functional language
+
+-- Merge two sorted lists into a single sorted list
+merge xs ys = case xs of
+    [] -> ys
+
+    (x:xt) -> case ys of
+        [] -> xs
+
+        (y:yt) -> if x <= y
+                  then x : merge xt ys
+                  else y : merge xs yt
+
+-- Split a list into two approximately equal halves
+split lst = case lst of
+  []   -> ([], [])
+
+  [x]  -> ([x], [])
+
+  x:y:zs ->
+    case split zs of
+      (xs, ys) -> (x:xs, y:ys)
+
+-- Merge Sort function
+mergeSort lst = case lst of
+    [] -> []
+
+    (x:[]) -> [x]
+
+    _ -> case split lst of
+           (left, right) -> merge (mergeSort left) (mergeSort right)
+
+print_final xs =
+  super single input (xs) output (out)
+#BEGINSUPER
+    out = unsafePerformIO
+      (do
+        print "MergeSort:"
+        print (toList xs)
+        pure (fromList [0]))
+#ENDSUPER
+
+-- Main expression for testing
+main = print_final (mergeSort [34, 7, 23, 32, 5, 62])
