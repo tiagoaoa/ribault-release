@@ -1,0 +1,61 @@
+const csum, 0
+
+const a, 2
+
+const ci, 0
+
+const b, 1000
+
+inctag inca, [a, sta.t]
+inctag incsum, [csum, asum]
+inctag inci, [ci, ai]
+inctag incb, [b, stb.t]
+lthan lt, inci, incb
+
+steer sti, lt, inci
+
+
+steer sta, lt, inca
+steer stsum, lt, incsum
+
+addi ai, sti.t, 1
+add asum, sta.t, stsum.t 
+
+
+steer stb, lt, incb
+
+
+
+
+
+
+
+
+
+
+
+const csum2, 0
+
+const a2, 2
+
+const ci2, 0
+
+const b2, 1000
+
+inctag inca2, [a2, sta2.t]
+inctag incsum2, [csum2, asum2]
+inctag inci2, [ci2, ai2]
+inctag incb2, [b2, stb2.t]
+lthan lt2, inci2, incb2
+
+steer sti2, lt2, inci2
+
+
+steer sta2, lt2, inca2
+steer stsum2, lt2, incsum2
+
+addi ai2, sti2.t, 1
+add asum2, sta2.t, stsum2.t 
+
+
+steer stb2, lt2, incb2

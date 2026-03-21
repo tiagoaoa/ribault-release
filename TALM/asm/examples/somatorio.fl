@@ -1,0 +1,14 @@
+const n, 10
+const c1, 0
+
+const c2, 1
+
+
+super sum1, f1, c1, n //hardcoded with the sum code, in this example.
+
+super sum2, f2, c2, n
+
+add result, f1, f2
+
+add a1, c1, c2 //to demonstrate out-of-order execution
+ 

@@ -1,0 +1,4 @@
+-- Let expression
+squarePlusOne = \n -> let sq = n * n in sq + 1
+
+main = squarePlusOne 1

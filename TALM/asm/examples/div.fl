@@ -1,0 +1,10 @@
+
+const a, 10
+const b, 3
+
+div d0, a, b
+
+divi d1, a, 5
+addi c, d0.0, 3
+addi d, d0.1, 4
+

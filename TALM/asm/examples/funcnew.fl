@@ -1,0 +1,28 @@
+const a, 1
+const b, 2
+
+const x, 3
+const y, 4
+
+
+callgroup("c1", "funcao")
+callsnd funcao[1], a, c1
+callsnd funcao[2], b, c1
+
+retsnd funcao[0], a, c1
+
+addi a1, funcaoret.c1, 777
+
+
+callgroup("c2", "funcao")
+callsnd funcao[1], x, c2
+callsnd funcao[2], y, c2
+
+addi a2, funcaoret.c2, 888
+
+retsnd funcao[0], x, c2
+
+
+add sum, funcao[1], funcao[2]
+
+ret funcaoret, sum, funcao[0]

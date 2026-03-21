@@ -1,0 +1,52 @@
+-- Grafo de exemplo: lista de pares (vértice, lista de vizinhos)
+graph = [(1,[2,3]), (2,[4]), (3,[4,5]), (4,[]), (5,[])]
+
+-- lookupGraph: dado um grafo e um nó, retorna sua lista de vizinhos
+lookupGraph g x = case g of
+  []               -> []
+
+  ((v,vs):rest)    ->
+    if x == v
+      then vs
+      else lookupGraph rest x
+
+-- elem: testa se x está em xs
+elem x xs = case xs of
+  []      -> False
+
+  (y:ys)  ->
+    if x == y
+      then True
+      else elem x ys
+
+-- append: concatena duas listas
+append xs ys = case xs of
+  []      -> ys
+
+  (z:zs)  -> z : append zs ys
+
+-- filterNotVisited: mantém só os vizinhos não visitados
+filterNotVisited xs visited = case xs of
+  []      -> []
+
+  (z:zs)  ->
+    if elem z visited
+      then filterNotVisited zs visited
+      else z : filterNotVisited zs visited
+
+-- bfsRec: (fila de nós) e (lista de visitados)
+bfsRec queue visited = case queue of
+  []      -> visited
+
+  (n:ns)  ->
+    let nbrs     = lookupGraph graph n in
+    let news     = filterNotVisited nbrs visited in
+    let queue'   = append ns news in
+    let visited' = append visited news in
+    bfsRec queue' visited'
+
+-- bfs: inicia a BFS a partir de um nó
+bfs start = bfsRec [start] [start]
+
+-- main: executa bfs a partir de 1
+main = bfs 1

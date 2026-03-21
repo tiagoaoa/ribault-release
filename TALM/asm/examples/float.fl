@@ -1,0 +1,4 @@
+fconst a, 2.5
+fconst b, 3.1
+
+fadd soma, a, b

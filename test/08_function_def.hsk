@@ -1,0 +1,4 @@
+-- Function declaration with currying
+addThree x y z = x + y + z
+
+main = addThree 1 2 3

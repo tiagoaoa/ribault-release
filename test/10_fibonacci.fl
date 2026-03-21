@@ -1,0 +1,117 @@
+const z0, 0
+callgroup("cg31","fib")
+callgroup("cg58","fib")
+callgroup("cg79","fib")
+callgroup("cg99","print_final")
+const n0, 10
+addi n1, [s78.w, s77.w], 0
+addi n2, fib[1], 0
+const n3, 2
+sub n4, n2, n2
+addi n5, n4, 2
+lthan n6, n2, n5
+sub n7, n6, n6
+gthan n8, n6, n7
+const n9, 1
+sub n10, n8, n8
+addi n11, n10, 1
+steer s12, n8, n11
+tagval n13, s12.w
+valtag n14, n2, n13
+sub n15, n8, n8
+equal n16, n8, n15
+const n17, 1
+sub n18, n16, n16
+addi n19, n18, 1
+steer s20, n16, n19
+sub n21, n16, n16
+addi n22, n21, 1
+sub n23, n2, n22
+const n24, 1
+sub n25, n16, n16
+addi n26, n25, 1
+steer s27, n16, n26
+tagval n28, n23
+valtag n29, s27.w, n28
+steer s30, n29, n23
+tagval n32, s30.w
+muli n33, n32, 16
+addi n34, n33, 2
+valtag n35, s30.w, n34
+tagval n36, s30.w
+muli n37, n36, 16
+addi n38, n37, 2
+valtag n39, s30.w, n38
+callsnd fib[1], n39, n35, 0
+retsnd n41, n35, n35, cg31
+ret fib, [n44, n70, n91], [n41, n68, n89]
+tagval n43, n41
+valtag n44, n1, n43
+tagval n45, n44
+divi n46, n45, 16
+valtag n47, n44, n46
+sub n48, n16, n16
+addi n49, n48, 2
+sub n50, n2, n49
+const n51, 1
+sub n52, n16, n16
+addi n53, n52, 1
+steer s54, n16, n53
+tagval n55, n50
+valtag n56, s54.w, n55
+steer s57, n56, n50
+tagval n59, s57.w
+muli n60, n59, 16
+addi n61, n60, 3
+valtag n62, s57.w, n61
+tagval n63, s57.w
+muli n64, n63, 16
+addi n65, n64, 3
+valtag n66, s57.w, n65
+callsnd fib[1], n66, n62, 0
+retsnd n68, n62, n62, cg58
+tagval n69, n68
+valtag n70, n1, n69
+tagval n71, n70
+divi n72, n71, 16
+valtag n73, n70, n72
+add n74, n47, n73
+tagval n75, s20.w
+valtag n76, n74, n75
+steer s77, n8, n14
+steer s78, n16, n76
+tagval n80, n0
+muli n81, n80, 16
+addi n82, n81, 4
+valtag n83, n0, n82
+tagval n84, n0
+muli n85, n84, 16
+addi n86, n85, 4
+valtag n87, n0, n86
+callsnd fib[1], n87, n83, 0
+retsnd n89, n83, n83, cg79
+tagval n90, n89
+valtag n91, n1, n90
+tagval n92, n91
+divi n93, n92, 16
+valtag n94, n91, n93
+addi n95, n97, 0
+addi n96, print_final[1], 0
+super n97, 4, 1, n96
+ret print_final, n111, n109
+tagval n100, n94
+muli n101, n100, 16
+addi n102, n101, 2
+valtag n103, n94, n102
+tagval n104, n94
+muli n105, n104, 16
+addi n106, n105, 2
+valtag n107, n94, n106
+callsnd print_final[1], n107, n103, 0
+retsnd n109, n103, n103, cg99
+tagval n110, n109
+valtag n111, n95, n110
+tagval n112, n111
+divi n113, n112, 16
+valtag n114, n111, n113
+ret main, n114, z0

@@ -1,0 +1,9 @@
+floatSum x y = x + y
+
+floatSub x y = x - y
+
+floatDiv x y = x / y
+
+floatMult x y = x * y
+
+main = (floatSum 2.5 3.0)*(floatSub 2.5 3.5) / (floatMult 1.5 (floatDiv 3.0 2.0))

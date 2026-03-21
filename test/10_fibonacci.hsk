@@ -1,0 +1,17 @@
+-- Recursive Fibonacci (n-th term)
+fib n =
+  if n < 2
+  then n
+  else fib (n - 1) + fib (n - 2)
+
+print_final n =
+  super single input (n) output (out)
+#BEGINSUPER
+    out = unsafePerformIO
+      (do
+        print "Fib:"
+        print n
+        pure 0)
+#ENDSUPER
+
+main = print_final (fib 10)

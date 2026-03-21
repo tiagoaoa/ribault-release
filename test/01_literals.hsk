@@ -1,0 +1,16 @@
+-- Literals 
+trueBool  = True
+
+falseBool = False
+
+intVal    = 42
+
+floatVal  = 3.14
+
+charVal   = 'z'
+
+stringVal = "lambda"
+
+listVal   = [1,2,3]
+
+tupleVal  = (1,2)

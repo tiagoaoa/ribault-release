@@ -1,0 +1,15 @@
+const ci, 0
+const cb, 10
+
+
+
+inctag inci, [ci,ai]
+inctag incb, [cb,stb.t]
+
+varprob("lt", 0.9)
+lthan lt, inci, incb
+
+steer sti, lt, inci
+steer stb, lt, incb
+
+addi ai, sti.t, 1

@@ -1,0 +1,13 @@
+const c1, -5
+
+const c2, 70+2
+
+const c3, 1
+lthan lt, c1, c2
+
+steer s1, lt, c1
+
+steer s2, lt, c2
+
+
+add a1, [s1.t, s2.f], c3

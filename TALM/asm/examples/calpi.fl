@@ -1,0 +1,11 @@
+const n, 2000000000
+const stride, 2
+const start0, 0
+const start1, 1
+
+super calpi0, pival0, n, stride, start0
+super calpi1, pival1, n, stride, start1
+
+fadd pires, calpi0, calpi1
+
+

@@ -1,0 +1,18 @@
+-- Vector sum (list of Int) with only final print super
+
+sumVec xs ys = case xs of
+  [] -> []
+  (x:xt) -> case ys of
+    [] -> []
+    (y:yt) -> (x + y) : sumVec xt yt
+
+print_final xs =
+  super single input (xs) output (out)
+#BEGINSUPER
+    out = unsafePerformIO
+      (do
+        print (toList xs)
+        pure (fromList [0]))
+#ENDSUPER
+
+main = print_final (sumVec [1,2,3,4] [10,20,30,40])
