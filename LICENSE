@@ -1,6 +1,14 @@
+This repository contains code under two licenses:
+
+  Ribault compiler (src/, tools/, benchmarks/)  — MIT License
+  TALM runtime (TALM/)                          — LGPL-3.0-or-later (see TALM/LICENSE)
+
+================================================================================
+
 MIT License
 
-Copyright (c) 2025 Ricardo Magal
+Copyright (c) 2025 Ricardo Magalhaes Santos Filho
+Copyright (c) 2026 Tiago A.O. Alves
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
