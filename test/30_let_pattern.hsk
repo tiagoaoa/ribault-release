@@ -1,0 +1,17 @@
+-- Test let-pattern destructuring: let (a, b) = expr in ...
+
+split xs = case xs of
+  []       -> ([], [])
+  (x:[])   -> ([x], [])
+  (x:y:zs) ->
+    case split zs of
+      (ls, rs) -> (x:ls, y:rs)
+
+len xs = case xs of
+  []     -> 0
+  (_:ys) -> 1 + len ys
+
+-- Use let-pattern to destructure the pair returned by split
+main =
+  let (left, right) = split [1,2,3,4,5,6,7,8]
+  in len left + len right

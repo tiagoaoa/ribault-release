@@ -34,6 +34,7 @@ collectSupers (Program decls) = dedupByName (concatMap declSupers decls)
   where
     declSupers :: Decl -> [SuperSpec]
     declSupers (FunDecl _ _ e) = exprSupers e
+    declSupers (PatDecl _ e)   = exprSupers e
 
     exprSupers :: Expr -> [SuperSpec]
     exprSupers = \case

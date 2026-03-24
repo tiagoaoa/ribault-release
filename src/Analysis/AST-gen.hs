@@ -147,6 +147,12 @@ visitDecl (FunDecl f ps e) = do
   be <- visitExpr e
   emitEdge me be
   pure me
+visitDecl (PatDecl _pat e) = do
+  me <- fresh
+  emitNode me "PatDecl"
+  be <- visitExpr e
+  emitEdge me be
+  pure me
 
 -- | Visit an expression and emit the corresponding subgraph.
 --

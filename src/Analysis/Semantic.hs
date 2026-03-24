@@ -19,9 +19,93 @@ desugarDecl :: Decl -> Decl
 desugarDecl (FunDecl f [] (Lambda ps e)) = FunDecl f ps e
 desugarDecl d = d
 
--- | Desugar the entire program via 'desugarDecl'.
+-- | Desugar the entire program via 'desugarDecl' + 'desugarExpr'.
 desugarProgram :: Program -> Program
-desugarProgram (Program ds) = Program (map desugarDecl ds)
+desugarProgram (Program ds) =
+  Program [case desugarDecl d of
+             FunDecl f ps e -> FunDecl f ps (desugarExpr e)
+             other          -> other
+          | d <- ds]
+
+-- | Desugar let-pattern bindings recursively.
+-- @let (a, b) = expr in body@ becomes
+-- @let _patN = expr in case _patN of (a, b) -> body@
+desugarExpr :: Expr -> Expr
+desugarExpr = go 0 . fst . desugarExpr'
+  where
+    go _ e = e  -- identity; counter threading is in desugarExpr'
+
+desugarExpr' :: Expr -> (Expr, Int)
+desugarExpr' = de 0
+  where
+    de n expr = case expr of
+      Var x       -> (Var x, n)
+      Lit l       -> (Lit l, n)
+      Lambda ps b -> let (b', n') = de n b in (Lambda ps b', n')
+      If c t e    -> let (c', n1) = de n c
+                         (t', n2) = de n1 t
+                         (e', n3) = de n2 e
+                     in (If c' t' e', n3)
+      Case s as   -> let (s', n1) = de n s
+                         (as', n2) = deAlts n1 as
+                     in (Case s' as', n2)
+      Let ds body ->
+        let (funDs, patDs) = splitDecls ds
+            (funDs', n1) = deFunDecls n funDs
+            (body', n2) = de n1 body
+        in if null patDs
+           then (Let funDs' body', n2)
+           else wrapPatDecls n2 funDs' patDs body'
+      App f x     -> let (f', n1) = de n f
+                         (x', n2) = de n1 x
+                     in (App f' x', n2)
+      BinOp o l r -> let (l', n1) = de n l
+                         (r', n2) = de n1 r
+                     in (BinOp o l' r', n2)
+      UnOp o e    -> let (e', n1) = de n e in (UnOp o e', n1)
+      List xs     -> let (xs', n1) = deList n xs in (List xs', n1)
+      Tuple xs    -> let (xs', n1) = deList n xs in (Tuple xs', n1)
+      Cons h t    -> let (h', n1) = de n h
+                         (t', n2) = de n1 t
+                     in (Cons h' t', n2)
+      Super nm is b -> (Super nm is b, n)
+
+    deAlts n [] = ([], n)
+    deAlts n ((p,e):rest) = let (e', n1) = de n e
+                                (rest', n2) = deAlts n1 rest
+                            in ((p, e') : rest', n2)
+
+    deList n [] = ([], n)
+    deList n (e:es) = let (e', n1) = de n e
+                          (es', n2) = deList n1 es
+                      in (e' : es', n2)
+
+    deFunDecls n [] = ([], n)
+    deFunDecls n (FunDecl f ps b : ds) =
+      let (b', n1) = de n b
+          (ds', n2) = deFunDecls n1 ds
+      in (FunDecl f ps b' : ds', n2)
+    deFunDecls n (_:ds) = deFunDecls n ds
+
+    splitDecls ds = ([ d | d@(FunDecl{}) <- ds ], [ d | d@(PatDecl{}) <- ds ])
+
+    -- Wrap pattern declarations around body:
+    -- let (a,b) = e1; (c,d) = e2 in body
+    -- → let _pat0 = e1 in case _pat0 of (a,b) ->
+    --     let _pat1 = e2 in case _pat1 of (c,d) -> body
+    wrapPatDecls :: Int -> [Decl] -> [Decl] -> Expr -> (Expr, Int)
+    wrapPatDecls n funDs [] body =
+      if null funDs then (body, n) else (Let funDs body, n)
+    wrapPatDecls n funDs (PatDecl pat rhs : rest) body =
+      let tmpName = "_pat" ++ show n
+          (inner, n') = wrapPatDecls (n + 1) [] rest body
+          caseExpr = Case (Var tmpName) [(pat, inner)]
+          (rhs', n'') = de n' rhs
+          letExpr = if null funDs
+                    then Let [FunDecl tmpName [] rhs'] caseExpr
+                    else Let (funDs ++ [FunDecl tmpName [] rhs']) caseExpr
+      in (letExpr, n'')
+    wrapPatDecls n funDs (_:rest) body = wrapPatDecls n funDs rest body
 
 -- | Semantic (non-typing) error kinds.
 data SemanticError
@@ -79,18 +163,22 @@ type Infer a = ExceptT TypeError (State InferState) a
 buildSig :: [Decl] -> Sig
 buildSig =
   foldr
-    (\(FunDecl f ps _) acc -> Map.insertWith (const id) f (length ps) acc)
+    (\d acc -> case d of
+       FunDecl f ps _ -> Map.insertWith (const id) f (length ps) acc
+       _              -> acc)
     Map.empty
 
 -- | Create a function environment assigning fresh type variables to
 -- each function's arguments and a unique return type variable @r_f@.
 buildFuncEnv :: [Decl] -> FuncEnv
 buildFuncEnv =
-  Map.fromList . map
-    (\(FunDecl f args _) ->
-       let tvs = replicate (length args) (TVar "_")
-           tr  = TVar ("r_" ++ f)
-       in (f, (tvs, tr)))
+  Map.fromList . concatMap
+    (\d -> case d of
+       FunDecl f args _ ->
+         let tvs = replicate (length args) (TVar "_")
+             tr  = TVar ("r_" ++ f)
+         in [(f, (tvs, tr))]
+       _ -> [])
 
 -- | Run semantic checks (no typing) over the program and collect all errors.
 semanticCheck :: Program -> [Error]
@@ -109,6 +197,7 @@ checkDecl sig (FunDecl _ ps b) =
   let env0 = Set.fromList ps
       dupParams = [ DuplicateParam x | x <- ps, length (filter (==x) ps) > 1 ]
   in dupParams ++ checkExpr sig env0 b
+checkDecl _ (PatDecl _ _) = []  -- desugared before reaching here
 
 -- | Check an expression for semantic issues under a signature and env.
 checkExpr :: Sig -> Env -> Expr -> [SemanticError]
@@ -196,6 +285,7 @@ checkProgram prog =
       in case runState (runExceptT act) st0 of
            (Left te, _) -> [TypErr te]
            _            -> []
+    runDecl _ _ (PatDecl _ _) = []
 
 -- | Unify two (return) types, preferring concrete types when possible.
 unifyReturn :: Type -> Type -> Infer Type
@@ -422,6 +512,7 @@ assignSuperNames (Program ds) =
     superBase :: Int
     superBase = 4
     goDecl (FunDecl f ps e) = FunDecl f ps <$> goExpr e
+    goDecl (PatDecl pat e)  = PatDecl pat <$> goExpr e
     goExpr :: Expr -> State Int Expr
     goExpr = \case
       Var x       -> pure (Var x)
@@ -434,7 +525,9 @@ assignSuperNames (Program ds) =
         as' <- mapM (\(p,e0) -> do e1 <- goExpr e0; pure (p,e1)) as
         pure (Case s' as')
       Let ds0 e0  -> do
-        ds1 <- mapM (\(FunDecl f ps b) -> FunDecl f ps <$> goExpr b) ds0
+        ds1 <- mapM (\d -> case d of
+                            FunDecl f ps b -> FunDecl f ps <$> goExpr b
+                            PatDecl pat b  -> PatDecl pat <$> goExpr b) ds0
         e1  <- goExpr e0
         pure (Let ds1 e1)
       App f x     -> App <$> goExpr f <*> goExpr x

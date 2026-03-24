@@ -65,6 +65,10 @@ data Decl
     --
     -- The arity of the function is given by the length of the parameter list.
     FunDecl Ident [Ident] Expr
+  | -- | Pattern destructuring declaration:
+    --
+    -- @let (a, b) = expr in ...@ desugars to binding a = fst(expr), b = snd(expr)
+    PatDecl Pattern Expr
   deriving (Show)
 
 -- | Kind of /super block/ is inferred from context.

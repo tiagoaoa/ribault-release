@@ -389,6 +389,7 @@ exprHasList = \case
 
 declHasList :: Decl -> Bool
 declHasList (FunDecl _ _ body) = exprHasList body
+declHasList (PatDecl _ body)   = exprHasList body
 
 exprHasFloat :: Expr -> Bool
 exprHasFloat = \case
@@ -404,6 +405,7 @@ exprHasFloat = \case
 
 declHasFloat :: Decl -> Bool
 declHasFloat (FunDecl _ _ body) = exprHasFloat body
+declHasFloat (PatDecl _ body)   = exprHasFloat body
 
 -- | Connect two 'Port's by emitting an edge.
 connect :: Port -> Port -> Build ()
@@ -875,6 +877,7 @@ goExpr = \case
 -- | Insert a function lambda into the environment.
 goDecl :: Decl -> Build ()
 goDecl (FunDecl f ps body) = insertB f (BLam ps body)
+goDecl (PatDecl _ _) = pure ()  -- desugared away before reaching builder
 
 -- Aplicação n-ária -----------------------------------------------------
 

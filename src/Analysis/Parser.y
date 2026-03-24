@@ -86,6 +86,8 @@ DeclRest :: { [Decl] }
 
 Decl :: { Decl }
     : ident Params "=" Expr         { FunDecl $1 $2 $4 }
+    | "(" Pattern "," Pattern ")" "=" Expr
+                                    { PatDecl (PTuple [$2, $4]) $7 }
 
 Params :: { [Ident] }
     :                               { [] }
