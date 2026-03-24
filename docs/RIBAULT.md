@@ -241,6 +241,6 @@ These directions build on the central observation of this work: the corresponden
 
 ---
 
-*Ribault is developed at UFES/UERJ. The compiler is the undergraduate thesis of Ricardo Magalhaes Santos Filho, advised by Prof. Alberto Ferreira de Souza and Prof. Tiago A.O. Alves. The TALM runtime was developed at COPPE/UFRJ.*
+*Ribault was first created as the undergraduate thesis of Ricardo Magalhaes Santos Filho, advised by Prof. Alberto Ferreira de Souza and Prof. Tiago A.O. Alves. The TALM runtime was developed at by Tiago A.O. Alves.*
 
 *The release package, including all source code, benchmarks, and paper data, is available at [github.com/tiagoaoa/ribault-release](https://github.com/tiagoaoa/ribault-release).*
