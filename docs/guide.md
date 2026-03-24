@@ -24,6 +24,7 @@ main = sum [1,2,3]
 - Literals: `123`, `3.14`, `'a'`, `"str"`, `True`, `False`
 - If: `if cond then e1 else e2`
 - Let: `let x = ...; y = ... in expr` **(use layout; no semicolons)**
+- Let with pattern destructuring: `let (a, b) = expr in ...` (pairs only)
 - Case: `case expr of pat -> expr; ...` **(use layout; no semicolons)**
 - Lists: `[1,2,3]`, `x:xs`
 - Tuples: **pairs only** `(a,b)`. Larger tuples are parsed but not represented
@@ -84,9 +85,8 @@ psum xs level = case xs of
         leafSum xs = foldl' (+) 0 (toList xs)
       )
     else
-      case split xs of
-        (left, right) ->
-          psum left (level + 1) + psum right (level + 1)
+      let (left, right) = split xs
+      in psum left (level + 1) + psum right (level + 1)
 ```
 
 Above the cutoff: lightweight dataflow coordination nodes.
@@ -151,9 +151,16 @@ f x =
 ```
 
 ```
-g xs = case xs of
+-- let-pattern destructuring (pairs)
+g xs =
+  let (left, right) = split xs
+  in len left + len right
+```
+
+```
+h xs = case xs of
   []     -> 0
-  (h:ts) -> h + g ts
+  (h:ts) -> h + h ts
 ```
 
 Rules of thumb:

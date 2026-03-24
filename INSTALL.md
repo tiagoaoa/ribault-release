@@ -151,7 +151,7 @@ make interp
 make test
 ```
 
-This compiles all 28 test programs in `test/` through the full pipeline
+This compiles all 30 test programs in `test/` through the full pipeline
 (analysis → synthesis → codegen) and reports pass/fail:
 
 ```

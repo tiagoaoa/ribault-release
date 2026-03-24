@@ -21,7 +21,7 @@ cd ribault-release
 ```bash
 ./configure          # check GHC, alex, happy, gcc, python3, ...
 make                 # build Ribault compiler + Trebuchet interpreter
-make test            # correctness tests (28 programs)
+make test            # correctness tests (30 programs)
 ```
 
 See [INSTALL.md](INSTALL.md) for the full installation and testing tutorial.
@@ -108,7 +108,7 @@ ribault-release/
 ├── TALM/
 │   ├── asm/               # FlowASM assembler (assembler.py, flowasm.py, ...)
 │   └── interp/            # Trebuchet interpreter (interp.c, queue.c, Makefile, ...)
-├── test/                  # 28 test programs (.hsk)
+├── test/                  # 30 test programs (.hsk)
 ├── tools/                 # Super-instruction build helpers
 ├── benchmarks/            # run_tests.sh, run_benchmarks.sh
 ├── results/paper/         # CSV data from all 3 paper benchmarks
@@ -123,19 +123,15 @@ ribault-release/
 ```haskell
 cutoff = 2   -- log2(P): for P=4 cores, spawn 4 leaf supers
 
-psum xs level = case xs of
-  []     -> 0
-  (x:[]) -> x
-  _      ->
-    if level == cutoff
-    then
-      super leafSum xs (
-        leafSum xs = foldl' (+) 0 (toList xs)
-      )
-    else
-      case split xs of
-        (left, right) ->
-          psum left (level + 1) + psum right (level + 1)
+psum xs level =
+  if level == cutoff
+  then
+    super leafSum xs (
+      leafSum xs = foldl' (+) 0 (toList xs)
+    )
+  else
+    let (left, right) = split xs
+    in psum left (level + 1) + psum right (level + 1)
 ```
 
 Above `cutoff`: dataflow coordination (split, add). At `cutoff`: each
@@ -169,7 +165,7 @@ TALM/interp/interp 8 prog.flb prog_auto.pla ./libsupers.so        # execute
 ### Test and benchmark
 
 ```bash
-make test              # Compile all 28 test programs through the pipeline
+make test              # Compile all 30 test programs through the pipeline
 make test-execute      # Compile + execute on Trebuchet
 make bench             # Performance benchmarks (TALM vs GHC)
 

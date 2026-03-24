@@ -39,19 +39,15 @@ A simple example, parallel sum with adaptive granularity:
 ```haskell
 cutoff = 2   -- log2(P): for P=4 cores, spawn 4 leaf supers
 
-psum xs level = case xs of
-  []     -> 0
-  (x:[]) -> x
-  _      ->
-    if level == cutoff
-    then
-      super leafSum xs (
-        leafSum xs = foldl' (+) 0 (toList xs)
-      )
-    else
-      case split xs of
-        (left, right) ->
-          psum left (level + 1) + psum right (level + 1)
+psum xs level =
+  if level == cutoff
+  then
+    super leafSum xs (
+      leafSum xs = foldl' (+) 0 (toList xs)
+    )
+  else
+    let (left, right) = split xs
+    in psum left (level + 1) + psum right (level + 1)
 ```
 
 The recursion tree splits via dataflow coordination until `level == cutoff`, at which point each subproblem becomes a GHC-compiled super-instruction. Setting `cutoff = log2(P)` guarantees exactly P leaf supers, one per core.
@@ -85,9 +81,8 @@ msort xs level = case xs of
           in fromList (ms hlist)
       )
     else
-      case split xs of
-        (left, right) ->
-          merge (msort left (level + 1)) (msort right (level + 1))
+      let (left, right) = split xs
+      in merge (msort left (level + 1)) (msort right (level + 1))
 ```
 
 Everything *inside* a super executes as native code: GHC's strictness analyser, worker/wrapper transformation, and native code generator all apply. Everything *between* supers is coordinated by the dataflow graph: token matching, the firing rule, work-stealing dispatch.
@@ -204,7 +199,7 @@ The translation to dataflow graphs also preserves types and semantics. The type 
 
 ## Try It Yourself
 
-The full release (compiler, runtime, 29 test programs, benchmark harness, and all paper data) is available as a self-contained package:
+The full release (compiler, runtime, 30 test programs, benchmark harness, and all paper data) is available as a self-contained package:
 
 **Download:** [ribault-1.0.0.tar.gz](https://github.com/tiagoaoa/ribault-release/releases/download/v1.0.0/ribault-1.0.0.tar.gz)
 
@@ -215,7 +210,7 @@ tar xzf ribault-1.0.0.tar.gz
 cd ribault-1.0.0
 ./configure        # checks GHC >= 9.0, alex, happy, gcc, python3
 make               # builds compiler + Trebuchet interpreter
-make test          # compiles all 28 test programs
+make test          # compiles all 30 test programs
 
 # Run Fibonacci on 4 threads:
 ./ribault run test/10_fibonacci.hsk --threads 4
