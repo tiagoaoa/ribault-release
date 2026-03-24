@@ -31,14 +31,13 @@ mergeSort lst = case lst of
            (left, right) -> merge (mergeSort left) (mergeSort right)
 
 print_final xs =
-  super single input (xs) output (out)
-#BEGINSUPER
-    out = unsafePerformIO
+  super printResult xs (
+    printResult xs = unsafePerformIO
       (do
         print "MergeSort:"
         print (toList xs)
         pure (fromList [0]))
-#ENDSUPER
+  )
 
 -- Main expression for testing
 main = print_final (mergeSort [34, 7, 23, 32, 5, 62])

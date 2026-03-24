@@ -35,13 +35,12 @@ hello_codes =
                                                 l:[] -> a : b : c : d : e : f : g : h : i : j : k : l : []
 
 print_final cs =
-  super single input (cs) output (out)
-#BEGINSUPER
-    out = unsafePerformIO
+  super printStr cs (
+    printStr cs = unsafePerformIO
       (do
         let s = (map (toEnum . fromIntegral) (toList cs)) :: String
         print s
         pure (fromList [0]))
-#ENDSUPER
+  )
 
 main = print_final hello_codes

@@ -33,9 +33,8 @@ splitCount lst = case lst of
 
 -- SUPER: full merge sort for small lists
 ms_super lst =
-  super single input (lst) output (sorted)
-#BEGINSUPER
-    sorted =
+  super seqSort lst (
+    seqSort lst =
       let
         hlist = toList lst
 
@@ -63,7 +62,7 @@ ms_super lst =
           in forceList l' `par` (forceList r' `pseq` mergeLocal l' r')
       in
         fromList (ms hlist)
-#ENDSUPER
+  )
 
 mergeSort0 lst =
   let n0 = len lst

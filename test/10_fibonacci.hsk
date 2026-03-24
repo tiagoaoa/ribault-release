@@ -5,13 +5,12 @@ fib n =
   else fib (n - 1) + fib (n - 2)
 
 print_final n =
-  super single input (n) output (out)
-#BEGINSUPER
-    out = unsafePerformIO
+  super printFib n (
+    printFib n = unsafePerformIO
       (do
         print "Fib:"
         print n
         pure 0)
-#ENDSUPER
+  )
 
 main = print_final (fib 10)

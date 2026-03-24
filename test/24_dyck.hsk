@@ -6,9 +6,8 @@
 -- Input:  sc = start * SHIFT + count  (packed literal)
 -- Output: packed result = (tot + OFFSET) * RANGE + (mn + OFFSET)
 analyseRange sc =
-  super single input (sc) output (res)
-#BEGINSUPER
-    res =
+  super analyse sc (
+    analyse sc =
       let
         sh     = 10001
         start  = sc `div` sh
@@ -29,33 +28,32 @@ analyseRange sc =
                   mn1 = if s1 < mn then s1 else mn
               in s1 `seq` mn1 `seq` go s1 mn1 (i + 1)
       in go 0 0 start
-#ENDSUPER
+  )
 
 -- SUPER: compute min of two packed values
 -- Input: packed = (a + MINOFF) * MINSH + (b + MINOFF)
 -- Output: min(a, b)
 myMin packed =
-  super single input (packed) output (m)
-#BEGINSUPER
-    m = let minsh = 30001
-            minoff = 20000
-            a = packed `div` minsh - minoff
-            b = packed `mod` minsh - minoff
-        in if a < b then a else b
-#ENDSUPER
+  super computeMin packed (
+    computeMin packed =
+      let minsh = 30001
+          minoff = 20000
+          a = packed `div` minsh - minoff
+          b = packed `mod` minsh - minoff
+      in if a < b then a else b
+  )
 
 -- SUPER: unpack final result, check validity, print
 checkAndPrint packed =
-  super single input (packed) output (out)
-#BEGINSUPER
-    out =
+  super checkResult packed (
+    checkResult packed =
       let off = 10000
           rng = 20001
           tot = packed `div` rng - off
           mn  = packed `mod` rng - off
           r   = if tot == 0 then (if mn >= 0 then 1 else 0) else 0
       in unsafePerformIO (do print r; pure 0)
-#ENDSUPER
+  )
 
 -- Main: 8 parallel leaf SUPERs + merge tree
 main =
