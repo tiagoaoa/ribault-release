@@ -4,35 +4,29 @@
 
 ---
 
-Haskell is supposed to be the language where parallelism comes for free. Pure functions. No side effects. Referential transparency. Every textbook says the same thing: functional programs are *naturally parallel*.
+Functional languages imply that their referential transparency and absence of side effects make programs "naturally parallel," yet extracting high performance from these properties has proved difficult in practice. In GHC, the dominant Haskell compiler, parallelism is expressed through annotations such as `par`/`pseq` or the `Strategies` library. While conceptually elegant, this approach carries three sources of overhead that grow with problem size and core count.
 
-So why is parallel Haskell so slow?
+The overhead is not in the language — it is in the runtime system.
 
-Not slow in the "I wrote bad code" sense. Slow in the "I did everything right and GHC still can't scale past 4 cores" sense. Slow in the "adding more threads makes my program *slower*" sense.
+## Three Sources of Overhead in GHC's Parallel Runtime
 
-The answer isn't the language. It's what happens underneath.
-
-## The Three Taxes You Pay for GHC Parallelism
-
-When you write `par`/`pseq` or use `Control.Parallel.Strategies` in GHC, you're asking the runtime to inject *sparks* into a shared work-stealing pool. This is elegant — but it comes with three costs that grow with your problem size:
+GHC's parallel mechanisms inject *sparks* into a shared work-stealing pool managed by the runtime system (RTS). Three costs are well documented in the literature [Harris et al. 2005, Marlow et al. 2009]:
 
 **1. Spark management overhead.** Every potential parallel task creates a spark — a lightweight thunk placed on a deque. Sparks can be *fizzled* (discarded because the main thread already evaluated them), garbage collected (if unreferenced), or stolen by other capabilities. At scale, you're spending significant time managing sparks that may never execute.
 
 **2. Thunk allocation and blackhole synchronisation.** Under lazy evaluation, multiple threads can attempt to evaluate the same thunk simultaneously. GHC prevents this through *blackholing* — a synchronisation mechanism where a thread marks a thunk as "being evaluated" and others block until completion. This works, but it means every shared thunk is a potential contention point.
 
-**3. Stop-the-world garbage collection.** This is the killer. When *any* GHC capability triggers a GC, *all* capabilities must pause — even if they're in the middle of useful work. With 8 threads allocating in parallel, GC pauses synchronise all of them. With 16 threads, it's worse. Under workload imbalance, where one thread does all the work and the rest are idle, GC frequency actually *increases* with the number of cores.
+**3. Stop-the-world garbage collection.** When *any* GHC capability triggers a GC, *all* capabilities must pause — even if they are in the middle of useful work. With 8 threads allocating in parallel, GC pauses synchronise all of them. Under workload imbalance, where one thread does all the work and the rest are idle, GC frequency actually *increases* with the number of cores.
 
 These aren't implementation bugs. They're consequences of a fundamental design choice: GHC's parallel runtime shares a single heap across all capabilities.
 
-## An Alternative: What If Parallelism Were a Graph Problem?
+## Dataflow Execution as an Alternative
 
-There's an old idea — nearly as old as functional programming itself — that programs can be represented as dataflow graphs. Nodes are operations, edges are data dependencies. A node *fires* when all its inputs arrive. No program counter. No locks. No scheduler choosing what runs next.
+The dataflow model of computation represents a program as a directed graph where nodes are operations and edges carry data tokens. A node *fires* when all its input tokens arrive, consuming them and producing output tokens. No program counter, no locks, and no central scheduler are required.
 
-In the late 1970s and 1980s, MIT built actual hardware for this: the Tagged-Token Dataflow Architecture. The Id language and its successor pH compiled functional programs to these machines, exploiting the structural correspondence between referential transparency and the dataflow firing rule. Both are pure: in a dataflow graph, a node fires when its data arrives; in a pure function, an expression evaluates when its inputs are available.
+In the late 1970s and 1980s, MIT built hardware for this: the Tagged-Token Dataflow Architecture. The Id language and its successor pH compiled functional programs to these machines, exploiting the structural correspondence between referential transparency and the dataflow firing rule. Both models are founded on the same principle: a computation proceeds when its inputs are available, without requiring centralised scheduling.
 
-The hardware died — it was economically unviable. No software-only revival followed.
-
-Until now.
+The specialised hardware was eventually abandoned, but the underlying model remains sound. Ribault revisits this correspondence using a modern software runtime on commodity multi-core hardware.
 
 ## Ribault: Compiling Haskell to Dataflow Graphs
 
@@ -45,12 +39,18 @@ msort xs = case xs of
     []  -> []
     [x] -> [x]
     _   -> let (l, r) = split xs
-               sl = super parallel input(l) output(sl')
-                      msort l
-               sr = super parallel input(r) output(sr')
-                      msort r
+               sl = super parallel input (l) output (sl')
+               #BEGINSUPER
+                   sl' = msort l
+               #ENDSUPER
+               sr = super parallel input (r) output (sr')
+               #BEGINSUPER
+                   sr' = msort r
+               #ENDSUPER
            in merge sl' sr'
 ```
+
+The body between `#BEGINSUPER` and `#ENDSUPER` is opaque to the Ribault compiler — it is passed verbatim to GHC for compilation into native code. The super *kinds* (`single` or `parallel`) indicate scheduling intent to the TALM runtime.
 
 Everything *inside* a super executes as native code — GHC's strictness analyser, worker/wrapper transformation, and native code generator all apply. Everything *between* supers is coordinated by the dataflow graph: token matching, the firing rule, work-stealing dispatch.
 
@@ -98,15 +98,13 @@ Where does the 43x come from? Not primarily from parallelism. Ribault's four P c
 
 ### Dyck Paths: GHC Collapses, Ribault Doesn't
 
-This is the most dramatic result. Dyck path enumeration generates all paths of length 2N using a recursive tree. The `imb` parameter controls workload imbalance: at `imb=0%`, the tree is balanced; at `imb=100%`, virtually all work concentrates in a single branch.
+Dyck path enumeration generates all paths of length 2N using a recursive tree. The `imb` parameter controls workload imbalance: at `imb=0%`, the tree is balanced; at `imb=100%`, virtually all work concentrates in a single branch.
 
 With N=10^6, P=8, and balanced workload (`imb=0%`), both GHC baselines run at about 13 ms. Ribault runs at 5 ms — a healthy **14.7x** advantage.
 
-Now crank imbalance to 100%. One thread does everything.
+At `imb=100%`, the situation changes substantially. GHC Strategies jumps from 13 ms to **3.43 seconds** — a **264x degradation**. GHC `par`/`pseq` degrades to 1.47 s. Meanwhile, Ribault stays at **5.3 ms**. That's a **649x** advantage over Strategies and **279x** over `par`/`pseq`.
 
-GHC Strategies jumps from 13 ms to **3.43 seconds** — a **264x degradation**. GHC `par`/`pseq` degrades to 1.47 s. Meanwhile, Ribault stays at **5.3 ms**. That's a **649x** advantage over Strategies and **279x** over `par`/`pseq`.
-
-The root cause is anti-scaling in GHC's garbage collector. At `imb=100%`, one thread does all the work while P-1 threads idle. Yet stop-the-world GC pauses synchronise across *all* threads. More cores = more idle threads = more synchronisation overhead = worse performance. P=2 takes 579 ms (45x slower than P=1). P=8 takes 3.43 s (269x slower than P=1). Adding cores makes it **actively worse**.
+The root cause is anti-scaling in GHC's garbage collector. At `imb=100%`, one thread does all the work while P-1 threads idle. Yet stop-the-world GC pauses synchronise across *all* threads. More cores produce more idle threads participating in synchronisation: P=2 takes 579 ms (45x slower than P=1), P=8 takes 3.43 s (269x slower than P=1).
 
 The TALM runtime is immune: tokens are consumed deterministically, there is no garbage collector, and no stop-the-world synchronisation is required. Ribault's runtime is flat across all imbalance levels and thread counts.
 
@@ -120,7 +118,7 @@ TALM avoids this entirely: each super executes in its own pthread with its own c
 
 ### Self-Attention Pipeline: 8.16x
 
-The most structurally interesting benchmark. Each of 14 blocks reads Q, K, V matrices from disk (I/O phase), then computes scaled dot-product attention (compute phase). The phases are sequential *within* a block but independent *across* blocks.
+This benchmark exercises pipeline parallelism. Each of 14 blocks reads Q, K, V matrices from disk (I/O phase), then computes scaled dot-product attention (compute phase). The phases are sequential *within* a block but independent *across* blocks.
 
 In TALM, each block compiles into two supers connected by a single token edge. Trebuchet fires all 14 I/O supers immediately, and fires each compute super the instant its paired I/O super completes. I/O and compute overlap freely across blocks — no synchronisation, no barriers.
 
@@ -138,9 +136,9 @@ GHC `par`/`pseq` must iterate over diagonals in a sequential outer loop, spark b
 
 At P=16, N=100,000: TALM reaches **5.62x**. GHC Strategies reaches 4.80x. GHC `par`/`pseq` reaches 1.30x.
 
-## Where Ribault Loses
+## Limitations: Where Ribault Is Slower
 
-Honesty matters. The Fibonacci benchmark reveals Ribault's operating boundary clearly.
+The Fibonacci benchmark reveals the granularity boundary of Ribault's approach.
 
 Computing fib(35) with tree-recursive decomposition, the `cutoff` parameter controls granularity. At `cutoff=30`, only 8 leaf super-instructions execute, each performing ~30 iterative additions (~240 total). Ribault completes in 3.5 ms. GHC finishes in approximately **1 microsecond**. That's a 3,000x disadvantage.
 
@@ -154,17 +152,17 @@ The practical consequence: **supers must encapsulate O(ms) or more of sequential
 
 ## Why This Matters
 
-The results suggest three things:
+The experimental results support three observations:
 
 **1. The overhead structure of GHC's RTS is the primary bottleneck for parallel Haskell, not the parallelism mechanism itself.** Ribault's P=1 runtime is 2.9x faster than GHC's P=1 on matrix multiplication — before any parallelism enters the picture. On merge sort, the sequential advantage alone accounts for most of the 43x gap. Super-instructions execute as GHC `-O2` native code *without* the allocator, closure representation, or stack frame overhead of the GHC runtime system.
 
-**2. The absence of garbage collection is decisive under workload imbalance.** The Dyck path benchmark is the clearest demonstration: TALM's runtime is flat across all imbalance levels because tokens are fixed-size integers consumed deterministically during node firing. There is no heap, no nursery, no generational promotion, no synchronisation between workers for memory management. GHC's 649x collapse under 100% imbalance is not a bug — it's an inherent consequence of a shared-heap parallel GC design.
+**2. The absence of garbage collection is decisive under workload imbalance.** The Dyck path benchmark demonstrates this: TALM's runtime is flat across all imbalance levels because tokens are fixed-size integers consumed deterministically during node firing. There is no heap, no nursery, no generational promotion, no synchronisation between workers for memory management. GHC's 649x collapse under 100% imbalance is a consequence of the shared-heap parallel GC design.
 
 **3. Dataflow graphs make pipeline parallelism a first-class citizen.** The self-attention benchmark shows overlap that is trivially expressible in the dataflow model (two supers connected by an edge) but structurally impossible in GHC's spark model (where both phases must be bundled into a single evaluation unit). The firing rule — "execute when your inputs arrive" — is a more general coordination primitive than sparks.
 
 ## The Source Language Is Turing-Complete
 
-A natural concern: is H_sub too restricted to be useful? The ICFP paper proves it isn't. H_sub supports mutually recursive function declarations, lambda abstractions, conditionals (`if`/`case`), local recursive bindings (`let` as `letrec`), binary and unary operators, lists, pairs, cons cells, and super-instruction blocks. The proof encodes the six primitives that generate the class of mu-recursive functions: zero, successor, projection, composition, primitive recursion, and unbounded minimisation. Since these coincide with the Turing-computable functions, H_sub is Turing-complete.
+H_sub supports mutually recursive function declarations, lambda abstractions, conditionals (`if`/`case`), local recursive bindings (`let` as `letrec`), binary and unary operators, lists, pairs, cons cells, and super-instruction blocks. The proof encodes the six primitives that generate the class of mu-recursive functions: zero, successor, projection, composition, primitive recursion, and unbounded minimisation. Since these coincide with the Turing-computable functions, H_sub is Turing-complete.
 
 The translation to dataflow graphs also preserves types and semantics. The type preservation theorem shows that if a well-typed H_sub expression translates to a DFG subgraph G, then G is well-typed under an enriched port type system that tracks compound types (lists, pairs) through compilation. The semantic preservation theorem shows that executing G on an initial state produces the encoded result of evaluating the source expression — proved by induction on the evaluation derivation, with a secondary induction on the translation relation.
 
@@ -203,7 +201,7 @@ Several directions are promising:
 
 **Distributed execution.** Mapping dataflow graphs onto multi-node clusters by extending Trebuchet's communication layer to networked processing elements — a direction already explored for Python in the Sucuri library.
 
-The fundamental bet of this work is that the correspondence between pure functional programs and dataflow graphs, first exploited by MIT in the 1980s, deserves a second look — not on specialised hardware, but on commodity multi-core machines with a modern software runtime. The results suggest the bet is paying off.
+These directions build on the central observation of this work: the correspondence between pure functional programs and dataflow graphs, first exploited by the MIT Tagged-Token Architecture in the 1980s, can be effectively realised in software on commodity multi-core hardware.
 
 ---
 
