@@ -118,6 +118,30 @@ ribault-release/
 └── LICENSE                # MIT
 ```
 
+## Example: Adaptive Parallel Sum
+
+```haskell
+cutoff = 2   -- log2(P): for P=4 cores, spawn 4 leaf supers
+
+psum xs level = case xs of
+  []     -> 0
+  (x:[]) -> x
+  _      ->
+    if level == cutoff
+    then
+      super leafSum xs (
+        leafSum xs = foldl' (+) 0 (toList xs)
+      )
+    else
+      case split xs of
+        (left, right) ->
+          psum left (level + 1) + psum right (level + 1)
+```
+
+Above `cutoff`: dataflow coordination (split, add). At `cutoff`: each
+subproblem fires as a GHC-compiled super-instruction.
+See `test/29_mergesort_adaptive.hsk` for a full merge sort example.
+
 ## Usage
 
 ### Compile and run a program

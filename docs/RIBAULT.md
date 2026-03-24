@@ -32,27 +32,65 @@ The specialised hardware was eventually abandoned, but the underlying model rema
 
 Ribault is a compiler from an annotated subset of Haskell — call it H_sub — to dataflow graphs targeting the TALM instruction set. The graphs execute on Trebuchet, a multi-threaded C runtime that simulates the dataflow firing rule on commodity hardware using POSIX pthreads and Chase-Lev work-stealing deques.
 
-The key insight is the *super-instruction*. A super is a coarse-grained, self-contained sequential block — opaque Haskell code compiled by GHC with full optimisations (`-O2`). The programmer marks super boundaries with annotations:
+The key insight is the *super-instruction*. A super is a coarse-grained, self-contained sequential block — opaque Haskell code compiled by GHC with full optimisations (`-O2`). The programmer marks super boundaries with annotations. The syntax is `super funcName args ( body )`, where the body is arbitrary Haskell passed verbatim to GHC.
+
+A simple example — parallel sum with adaptive granularity:
 
 ```haskell
-msort xs = case xs of
-    []  -> []
-    [x] -> [x]
-    _   -> let (l, r) = split xs
-               sl = super sortLeft l (
-                   sortLeft xs = msort xs
-               )
-               sr = super sortRight r (
-                   sortRight xs = msort xs
-               )
-           in merge sl sr
+cutoff = 2   -- log2(P): for P=4 cores, spawn 4 leaf supers
+
+psum xs level = case xs of
+  []     -> 0
+  (x:[]) -> x
+  _      ->
+    if level == cutoff
+    then
+      super leafSum xs (
+        leafSum xs = foldl' (+) 0 (toList xs)
+      )
+    else
+      case split xs of
+        (left, right) ->
+          psum left (level + 1) + psum right (level + 1)
 ```
 
-The super header — `super funcName args` — names the function and its inputs. The body between balanced parentheses is opaque to the Ribault compiler; it is passed verbatim to GHC for compilation into native code. The scheduling kind (single vs parallel) is inferred from context by the dataflow builder.
+The recursion tree splits via dataflow coordination until `level == cutoff`, at which point each subproblem becomes a GHC-compiled super-instruction. Setting `cutoff = log2(P)` guarantees exactly P leaf supers — one per core.
+
+```
+depth 0:        split               ← dataflow coordination
+               /      \
+depth 1:    split      split        ← dataflow coordination
+           /    \     /    \
+depth 2:  S₁    S₂   S₃    S₄      ← 4 GHC-compiled super-instructions
+```
+
+The same pattern applies to merge sort, where each leaf super performs a full sequential sort:
+
+```haskell
+cutoff = 3   -- for P=8 cores
+
+msort xs level = case xs of
+  []     -> []
+  (x:[]) -> [x]
+  _      ->
+    if level == cutoff
+    then
+      super seqSort xs (
+        seqSort xs =
+          let hlist = toList xs
+              ms []  = []
+              ms [x] = [x]
+              ms xs  = let (l, r) = splitL xs
+                       in mergeL (ms l) (ms r)
+          in fromList (ms hlist)
+      )
+    else
+      case split xs of
+        (left, right) ->
+          merge (msort left (level + 1)) (msort right (level + 1))
+```
 
 Everything *inside* a super executes as native code — GHC's strictness analyser, worker/wrapper transformation, and native code generator all apply. Everything *between* supers is coordinated by the dataflow graph: token matching, the firing rule, work-stealing dispatch.
-
-No sparks. No thunks at the coordination level. No shared heap.
 
 ## The Compiler Pipeline
 

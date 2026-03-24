@@ -51,7 +51,6 @@ stores it as the super body, which is compiled separately by GHC.
 Syntax:
 ```
 result = super funcName arg1 arg2 (
-    funcName :: Int64 -> Int64 -> Int64
     funcName a b = a + b
 )
 ```
@@ -65,6 +64,34 @@ dataflow builder.
 
 **Input/output**: inputs are listed after the function name. The output is the
 return value of the function. Pass compound data by packing into lists or tuples.
+
+### Adaptive granularity pattern
+
+The recommended pattern is to use `if`/`else` to decide at which recursion
+depth supers are spawned. Set `cutoff = log2(P)` to produce exactly P leaf
+super-instructions:
+
+```
+cutoff = 2   -- log2(P): for P=4 cores
+
+psum xs level = case xs of
+  []     -> 0
+  (x:[]) -> x
+  _      ->
+    if level == cutoff
+    then
+      super leafSum xs (
+        leafSum xs = foldl' (+) 0 (toList xs)
+      )
+    else
+      case split xs of
+        (left, right) ->
+          psum left (level + 1) + psum right (level + 1)
+```
+
+Above the cutoff: lightweight dataflow coordination nodes.
+At the cutoff: GHC-compiled native code in each leaf super.
+See `test/29_mergesort_adaptive.hsk` for a complete merge sort example.
 
 Legacy syntax (`#BEGINSUPER`/`#ENDSUPER`) is still supported for backward
 compatibility:
