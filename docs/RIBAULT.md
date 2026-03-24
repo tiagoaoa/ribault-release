@@ -1,6 +1,6 @@
 # What If Haskell's Parallelism Problem Isn't the Language, but the Runtime?
 
-*Ribault compiles Haskell to dataflow graphs and runs them on a dedicated runtime. The result: up to 649x faster than GHC on pathological workloads, and 8–43x on normal ones. Here's how and why.*
+*Ribault compiles Haskell to dataflow graphs and runs them on a dedicated runtime, achieving 8–43x speedup over GHC on representative workloads and complete immunity to GHC's stop-the-world GC collapse under workload imbalance.*
 
 ---
 
@@ -138,7 +138,7 @@ Dyck path enumeration generates all paths of length 2N using a recursive tree. T
 
 With N=10^6, P=8, and balanced workload (`imb=0%`), both GHC baselines run at about 13 ms. Ribault runs at 5 ms, a **14.7x** advantage.
 
-At `imb=100%`, the situation changes substantially. GHC Strategies jumps from 13 ms to **3.43 seconds**: a **264x degradation**. GHC `par`/`pseq` degrades to 1.47 s. Meanwhile, Ribault stays at **5.3 ms**. That's a **649x** advantage over Strategies and **279x** over `par`/`pseq`.
+At `imb=100%`, the situation changes substantially. GHC Strategies degrades from 13 ms to **3.43 seconds** (a **264x** slowdown relative to its own balanced performance). GHC `par`/`pseq` degrades to 1.47 s. Ribault stays at **5.3 ms**, unaffected. The gap is not because Ribault gets faster: it is because GHC collapses under imbalanced GC pressure while Ribault's runtime is immune to this failure mode.
 
 The root cause is anti-scaling in GHC's garbage collector. At `imb=100%`, one thread does all the work while P-1 threads idle. Yet stop-the-world GC pauses synchronise across *all* threads. More cores produce more idle threads participating in synchronisation: P=2 takes 579 ms (45x slower than P=1), P=8 takes 3.43 s (269x slower than P=1).
 
@@ -192,7 +192,7 @@ The experimental results support three observations:
 
 **1. The overhead structure of GHC's RTS is the primary bottleneck for parallel Haskell, not the parallelism mechanism itself.** Ribault's P=1 runtime is 2.9x faster than GHC's P=1 on matrix multiplication, before any parallelism enters the picture. On merge sort, the sequential advantage alone accounts for most of the 43x gap. Super-instructions execute as GHC `-O2` native code without the allocator, closure representation, or stack frame overhead of the GHC runtime system.
 
-**2. The absence of garbage collection is decisive under workload imbalance.** The Dyck path benchmark demonstrates this: TALM's runtime is flat across all imbalance levels because tokens are fixed-size integers consumed deterministically during node firing. There is no heap, no nursery, no generational promotion, no synchronisation between workers for memory management. GHC's 649x collapse under 100% imbalance is a consequence of the shared-heap parallel GC design.
+**2. The absence of garbage collection is decisive under workload imbalance.** The Dyck path benchmark demonstrates this: TALM's runtime is flat across all imbalance levels because tokens are fixed-size integers consumed deterministically during node firing. There is no heap, no nursery, no generational promotion, no synchronisation between workers for memory management. GHC's catastrophic degradation (264x slowdown) under 100% imbalance is a consequence of the shared-heap parallel GC design; Ribault is immune to it.
 
 **3. Dataflow graphs make pipeline parallelism a first-class citizen.** The self-attention benchmark shows overlap that is trivially expressible in the dataflow model (two supers connected by an edge) but structurally impossible in GHC's spark model (where both phases must be bundled into a single evaluation unit). The firing rule ("execute when your inputs arrive") is a more general coordination primitive than sparks.
 
