@@ -6,7 +6,7 @@
 
 Functional languages imply that their referential transparency and absence of side effects make programs "naturally parallel," yet extracting high performance from these properties has proved difficult in practice. In GHC, the dominant Haskell compiler, parallelism is expressed through annotations such as `par`/`pseq` or the `Strategies` library. While conceptually elegant, this approach carries three sources of overhead that grow with problem size and core count.
 
-The overhead is not in the language: it is in the runtime system.
+The overhead is not in the language, it is in the runtime system.
 
 ## Three Sources of Overhead in GHC's Parallel Runtime
 
