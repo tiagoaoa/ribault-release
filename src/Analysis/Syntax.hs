@@ -67,15 +67,11 @@ data Decl
     FunDecl Ident [Ident] Expr
   deriving (Show)
 
--- | Kind of /super block/ to guide coarse-grained execution strategies.
---
--- Used by the 'Super' expression to hint whether the block is to be run
--- as a single serial region or in a parallel layout.
+-- | Kind of /super block/ is inferred from context.
+-- Kept for backward compatibility in intermediate representations.
 data SuperKind
-  = -- | Single (serial) super-instruction region.
-    SuperSingle
-  | -- | Parallel super-instruction region (semantics defined by backend).
-    SuperParallel
+  = SuperSingle
+  | SuperParallel
   deriving (Show)
 
 -- | Core expressions of the language.
@@ -106,28 +102,18 @@ data Expr
     Tuple [Expr]
   | -- | Cons cell: @Cons head tail@; typically normalized from list sugar.
     Cons  Expr Expr
-  -- --------------- NEW ----------------
-  | -- | Super-instruction block: @Super name kind inputVar outputVar body@.
+  -- --------------- SUPER ----------------
+  | -- | Super-instruction block.
     --
-    -- === Semantics (frontend-level)
-    -- This node marks a region intended for coarse-grained execution (e.g.,
-    -- as a TALM super-instruction). Backends are free to lower/inline/emit
-    -- metadata for this node according to their execution model.
+    -- @Super name inputs body@
     --
-    -- === Parameters
-    -- * @name@: symbolic tag (logical name) of the super block
-    -- * @kind@: see 'SuperKind' ('SuperSingle' or 'SuperParallel')
-    -- * @inputVar@: identifier that names the input port / view
-    -- * @outputVar@: identifier that names the output port / view
-    -- * @body@: backend-oriented payload (opaque string with the body between
-    --   @#BEGINSUPER@ / @#ENDSUPER@ in the source), kept verbatim
+    -- * @name@: assigned by 'Semantic.assignSuperNames' (\"s4\", \"s5\", ...)
+    -- * @inputs@: list of input variable names from the super header
+    -- * @body@: opaque Haskell code (compiled separately by GHC)
     --
-    -- === Notes
-    -- - This constructor is intentionally opaque to the pure core language:
-    --   semantic checking may only validate the surrounding wiring.
-    -- - The backend decides how to bind @inputVar@ and @outputVar@ to its
-    --   dataflow ports. The 'body' string is not interpreted here.
-    Super Ident SuperKind Ident Ident String   -- ^ super <kind> input(x) output(y) BODY
+    -- The output is the return value of the function defined in the body.
+    -- Kind (single/parallel) is inferred from context by the builder.
+    Super Ident [Ident] String   -- ^ super name args ( body )
   ----------------------------------------
   deriving (Show)
 

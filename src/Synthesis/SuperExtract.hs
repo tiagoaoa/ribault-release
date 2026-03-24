@@ -19,11 +19,9 @@ import Data.List (nubBy)
 
 -- | Minimal metadata needed to emit the supers module.
 data SuperSpec = SuperSpec
-  { ssName :: Ident        -- ^ \"s0\", \"s1\", …
-  , ssKind :: SuperKind    -- ^ metadata (not used by the ABI)
-  , ssInp  :: Ident        -- ^ logical input name
-  , ssOut  :: Ident        -- ^ logical output name
-  , ssBody :: String       -- ^ textual body stored in the AST (declarations/expression)
+  { ssName   :: Ident        -- ^ \"s0\", \"s1\", …
+  , ssInputs :: [Ident]      -- ^ input variable names
+  , ssBody   :: String       -- ^ textual body (opaque Haskell code)
   }
 
 -- | Remove duplicates by name (if a Super appears multiple times in the AST).
@@ -51,4 +49,4 @@ collectSupers (Program decls) = dedupByName (concatMap declSupers decls)
       List xs          -> concatMap exprSupers xs
       Tuple xs         -> concatMap exprSupers xs
       Cons h t         -> exprSupers h ++ exprSupers t
-      Super nm k i o s -> [ SuperSpec nm k i o s ]
+      Super nm inputs body -> [ SuperSpec nm inputs body ]

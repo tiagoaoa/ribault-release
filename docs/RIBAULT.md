@@ -39,18 +39,16 @@ msort xs = case xs of
     []  -> []
     [x] -> [x]
     _   -> let (l, r) = split xs
-               sl = super parallel input (l) output (sl')
-               #BEGINSUPER
-                   sl' = msort l
-               #ENDSUPER
-               sr = super parallel input (r) output (sr')
-               #BEGINSUPER
-                   sr' = msort r
-               #ENDSUPER
-           in merge sl' sr'
+               sl = super sortLeft l (
+                   sortLeft xs = msort xs
+               )
+               sr = super sortRight r (
+                   sortRight xs = msort xs
+               )
+           in merge sl sr
 ```
 
-The body between `#BEGINSUPER` and `#ENDSUPER` is opaque to the Ribault compiler — it is passed verbatim to GHC for compilation into native code. The super *kinds* (`single` or `parallel`) indicate scheduling intent to the TALM runtime.
+The super header — `super funcName args` — names the function and its inputs. The body between balanced parentheses is opaque to the Ribault compiler; it is passed verbatim to GHC for compilation into native code. The scheduling kind (single vs parallel) is inferred from context by the dataflow builder.
 
 Everything *inside* a super executes as native code — GHC's strictness analyser, worker/wrapper transformation, and native code generator all apply. Everything *between* supers is coordinated by the dataflow graph: token matching, the firing rule, work-stealing dispatch.
 

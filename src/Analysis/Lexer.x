@@ -23,11 +23,20 @@ tokens :-
 <0> \n                              { actNewline }
 <0> "--".*                          { skip }
 
--- Enter/leave super mode
-<0>     "#BEGINSUPER"               { actBeginSuper }
-<super> "#ENDSUPER"                 { actEndSuper }
+-- Super body mode: capture everything between balanced parens
+<super> "("                         { actSuperNest }
+<super> ")"                         { actSuperUnnest }
+<super> \'[^\\\']\'                 { actSuperAcc }
+<super> \"([^\\\"]|\\.)*\"          { actSuperAcc }
+<super> "--".*                      { actSuperAcc }
 <super> \n                          { actSuperAcc }
 <super> .                           { actSuperAcc }
+
+-- Legacy #BEGINSUPER/#ENDSUPER (backward compatibility)
+<0>     "#BEGINSUPER"               { actBeginSuper }
+<legacy_super> "#ENDSUPER"          { actEndSuper }
+<legacy_super> \n                   { actSuperAcc }
+<legacy_super> .                    { actSuperAcc }
 
 -- Keywords (normal mode only)
 <0> "let"                           { actEmit TokenLet }
@@ -73,12 +82,8 @@ tokens :-
 -- NOTE: ';' is no longer a source-level separator. Layout will insert TokenSemi.
 <0> ";"                             { skip }
 
--- Super headers (normal mode only)
+-- Super keyword (normal mode only)
 <0> "super"                         { actEmit TokenSuper }
-<0> "single"                        { actEmit TokenSingle }
-<0> "parallel"                      { actEmit TokenParallel }
-<0> "input"                         { actEmit TokenInput }
-<0> "output"                        { actEmit TokenOutput }
 
 -- Literals (normal mode only)
 <0> $digit+ "." $digit+             { \i n -> actEmitLex (\s -> TokenFloat (read s)) i n }
@@ -100,8 +105,7 @@ data Token
   | TokenCase | TokenOf
   | TokenNot
   | TokenBool Bool
-  | TokenSuper | TokenSingle | TokenParallel
-  | TokenInput | TokenOutput
+  | TokenSuper
   | TokenSuperBody String
   | TokenArrow
   | TokenEq | TokenNeq | TokenLe | TokenGe | TokenLt | TokenGt
@@ -121,24 +125,26 @@ data Token
 
 -- ===== User state: only super bodies =====
 data AlexUserState = AlexUserState
-  { stSuper   :: [Char]
-  , stInSuper :: !Bool
-  , stLastTok :: Maybe Token
-  , stLayout  :: [(Int, Int)]  -- (indent, parenDepth)
+  { stSuper      :: [Char]
+  , stInSuper    :: !Bool
+  , stSuperDepth :: !Int       -- paren nesting depth inside super body
+  , stLastTok    :: Maybe Token
+  , stLayout     :: [(Int, Int)]  -- (indent, parenDepth)
   , stNeedLayout :: !Bool
-  , stPending :: [Token]
-  , stParens  :: !Int
+  , stPending    :: [Token]
+  , stParens     :: !Int
   }
 
 alexInitUserState :: AlexUserState
 alexInitUserState = AlexUserState
-  { stSuper   = []
-  , stInSuper = False
-  , stLastTok = Nothing
-  , stLayout  = []
+  { stSuper      = []
+  , stInSuper    = False
+  , stSuperDepth = 0
+  , stLastTok    = Nothing
+  , stLayout     = []
   , stNeedLayout = False
-  , stPending = []
-  , stParens  = 0
+  , stPending    = []
+  , stParens     = 0
   }
 
 -- ===== Emit helpers =====
@@ -146,9 +152,16 @@ actEmit :: Token -> AlexAction Token
 actEmit t _ _ = do
   st <- alexGetUserState
   case t of
-    TokenLParen -> do
-      alexSetUserState st { stLastTok = Just t, stNeedLayout = False, stParens = stParens st + 1 }
-      pure t
+    TokenLParen
+      | stInSuper st -> do
+          -- This '(' opens the super body — switch to super capture mode
+          alexSetStartCode super
+          alexSetUserState st { stLastTok = Just t, stNeedLayout = False
+                              , stSuper = [], stSuperDepth = 0 }
+          alexMonadScan
+      | otherwise -> do
+          alexSetUserState st { stLastTok = Just t, stNeedLayout = False, stParens = stParens st + 1 }
+          pure t
     TokenRParen -> do
       let curP = stParens st
           newP = max 0 (curP - 1)
@@ -168,9 +181,12 @@ actEmit t _ _ = do
           pure t
     _ -> do
       let st' = case t of
-            TokenOf  -> st { stLastTok = Just t, stNeedLayout = True }
-            TokenLet -> st { stLastTok = Just t, stNeedLayout = True }
-            _        -> st { stLastTok = Just t, stNeedLayout = False }
+            TokenOf    -> st { stLastTok = Just t, stNeedLayout = True }
+            TokenLet   -> st { stLastTok = Just t, stNeedLayout = True }
+            TokenSuper -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = True }
+            -- Non-ident tokens clear the super header context
+            -- (ident tokens are handled by actEmitLex, which preserves stInSuper)
+            _          -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = False }
       alexSetUserState st'
       pure t
 
@@ -181,19 +197,49 @@ actEmitLex f (_,_,_,str) n = do
   alexSetUserState st { stLastTok = Just t }
   pure t
 
--- ===== super mode =====
-actBeginSuper :: AlexAction Token
-actBeginSuper _ _ = do
-  alexSetStartCode super
+-- ===== super body mode (new syntax: balanced parens) =====
+
+-- Called when '(' is seen inside super body: increase nesting
+actSuperNest :: AlexAction Token
+actSuperNest _ n = do
+  (_,_,_,str) <- alexGetInput
   st <- alexGetUserState
-  alexSetUserState st { stInSuper = True, stSuper = [] }
+  alexSetUserState st { stSuperDepth = stSuperDepth st + 1
+                      , stSuper = stSuper st ++ take n str }
   alexMonadScan
 
+-- Called when ')' is seen inside super body: decrease nesting or end
+actSuperUnnest :: AlexAction Token
+actSuperUnnest _ n = do
+  st <- alexGetUserState
+  if stSuperDepth st == 0
+    then do
+      -- Closing paren of the super body: emit the body token
+      alexSetStartCode 0
+      let t = TokenSuperBody (stSuper st)
+      alexSetUserState st { stInSuper = False, stSuperDepth = 0, stLastTok = Just t }
+      pure t
+    else do
+      -- Nested paren inside the body
+      (_,_,_,str) <- alexGetInput
+      alexSetUserState st { stSuperDepth = stSuperDepth st - 1
+                          , stSuper = stSuper st ++ take n str }
+      alexMonadScan
+
+-- Accumulate characters in super body mode
 actSuperAcc :: AlexAction Token
 actSuperAcc _ n = do
   (_,_,_,str) <- alexGetInput
   st <- alexGetUserState
   alexSetUserState st { stSuper = stSuper st ++ take n str }
+  alexMonadScan
+
+-- ===== legacy super mode (#BEGINSUPER/#ENDSUPER) =====
+actBeginSuper :: AlexAction Token
+actBeginSuper _ _ = do
+  alexSetStartCode legacy_super
+  st <- alexGetUserState
+  alexSetUserState st { stInSuper = True, stSuper = [] }
   alexMonadScan
 
 actEndSuper :: AlexAction Token
@@ -274,7 +320,8 @@ isContinuationStart s =
       ')' : _ -> True
       ']' : _ -> True
       '#' : _ -> startsWithPrefix "#BEGINSUPER" s'
-      _ -> startsWithKeyword "else" s'
+      _ -> startsWithKeyword "super" s'
+        || startsWithKeyword "else" s'
         || startsWithKeyword "in" s'
         || startsWithKeyword "then" s'
         || startsWithKeyword "of" s'

@@ -65,10 +65,6 @@ import Analysis.Lexer (Token(..))
   "False"       { TokenBool False }
   ident         { TokenIdent $$ }
   "super"       { TokenSuper }
-  "single"      { TokenSingle }
-  "parallel"    { TokenParallel }
-  "input"       { TokenInput }
-  "output"      { TokenOutput }
 
 %%
 
@@ -211,12 +207,12 @@ Atom :: { Expr }
     | "(" Expr ")"                 { $2 }
     | List                         { $1 }
     | Tuple                        { $1 }
-    | "super" SuperKind "input" "(" ident ")" "output" "(" ident ")" superbody
-                                   { Super "" $2 $5 $9 $11 }
+    | "super" ident SuperArgs superbody
+                                   { Super "" ($2 : $3) $4 }
 
-SuperKind :: { SuperKind }
-    : "single"                     { SuperSingle }
-    | "parallel"                   { SuperParallel }
+SuperArgs :: { [Ident] }
+    :                              { [] }
+    | ident SuperArgs              { $1 : $2 }
 
 Literal :: { Literal }
     : int                          { LInt $1 }

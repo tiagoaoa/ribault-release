@@ -152,8 +152,8 @@ checkExpr sig env expr = case expr of
     concatMap (checkExpr sig env) xs
   Tuple xs ->
     concatMap (checkExpr sig env) xs
-  Super _ _ inId _ _ ->
-    [UndefinedVar inId | not (Set.member inId env || Map.member inId sig)]
+  Super _ inputs _ ->
+    [UndefinedVar v | v <- inputs, not (Set.member v env || Map.member v sig)]
 
 -- | Check a single case alternative (pattern + branch body).
 checkAlt :: Sig -> Env -> (Pattern, Expr) -> [SemanticError]
@@ -306,10 +306,12 @@ inferExpr fenv tenv expr = case expr of
                (t:ts') -> foldM (unifyTypes expr) t ts'
     return (TList eltTy)
   Tuple xs -> TTuple <$> mapM (inferExpr fenv tenv) xs
-  Super _ _ inId _ _ ->
-    case Map.lookup inId tenv of
-      Just t  -> return t
-      Nothing -> freshTypeVar
+  Super _ inputs _ ->
+    case inputs of
+      (inId:_) -> case Map.lookup inId tenv of
+                    Just t  -> return t
+                    Nothing -> freshTypeVar
+      []       -> freshTypeVar
   where
     unifyTypes :: Expr -> Type -> Type -> Infer Type
     unifyTypes e t1 t2 = case (t1,t2) of
@@ -437,8 +439,8 @@ assignSuperNames (Program ds) =
       UnOp  o e0  -> UnOp  o <$> goExpr e0
       List xs     -> List  <$> mapM goExpr xs
       Tuple xs    -> Tuple <$> mapM goExpr xs
-      Super _nm kind inp out body -> do
+      Super _nm inputs body -> do
         i <- get
         put (i + 1)
         let nm = "s" ++ show i
-        pure (Super nm kind inp out body)
+        pure (Super nm inputs body)

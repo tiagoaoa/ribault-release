@@ -44,11 +44,30 @@ Why use supers:
 - to implement leaf kernels (e.g., merges, dot products)
 - to bypass high overhead dataflow nodes when needed
 
-Supers are *not* parsed by the TALM language parser. The lexer captures
-the raw text between `#BEGINSUPER` and `#ENDSUPER` and stores it as the
-super body.
+Supers are *not* parsed by the Ribault compiler. The lexer captures
+the raw text between balanced parentheses after the `super` header and
+stores it as the super body, which is compiled separately by GHC.
 
 Syntax:
+```
+result = super funcName arg1 arg2 (
+    funcName :: Int64 -> Int64 -> Int64
+    funcName a b = a + b
+)
+```
+
+The super header names the function and its inputs. The body in parentheses
+is arbitrary Haskell code (compiled by GHC). The function defined in the body
+is called with the input arguments, and its return value becomes the output token.
+
+The scheduling kind (single/parallel) is inferred from context by the
+dataflow builder.
+
+**Input/output**: inputs are listed after the function name. The output is the
+return value of the function. Pass compound data by packing into lists or tuples.
+
+Legacy syntax (`#BEGINSUPER`/`#ENDSUPER`) is still supported for backward
+compatibility:
 ```
 name x =
   super single input (x) output (out)
@@ -56,13 +75,6 @@ name x =
     out = ...
 #ENDSUPER
 ```
-
-Kinds:
-- `super single`   (single-threaded intent)
-- `super parallel` (parallel intent; scheduling handled by TALM)
-
-**Input/output** are single identifiers; you can pass compound data by
-packing it into lists or tuples.
 
 ### Helpers available inside supers
 
@@ -77,25 +89,17 @@ For floats inside lists, the generator also emits:
 Example (printing a list):
 ```
 print_final xs =
-  super single input (xs) output (out)
-#BEGINSUPER
-    out = unsafePerformIO
-      (do
-        print (toList xs)
-        pure [0])
-#ENDSUPER
+  super printList xs (
+    printList xs = unsafePerformIO (do print (toList xs); pure 0)
+  )
 ```
 
 Example (float list):
 ```
 print_f xs =
-  super single input (xs) output (out)
-#BEGINSUPER
-    out = unsafePerformIO
-      (do
-        print (toListF xs)
-        pure [0])
-#ENDSUPER
+  super printFloats xs (
+    printFloats xs = unsafePerformIO (do print (toListF xs); pure 0)
+  )
 ```
 
 ## 4) Tuples vs lists (important)
@@ -180,8 +184,8 @@ You do not need to place the program under `test/` for this flow.
 
 ## 9) Notes and pitfalls
 
-- The lexer treats everything between `#BEGINSUPER` and `#ENDSUPER` as raw
-  Haskell code.
+- The lexer treats the body between balanced `(` `)` after `super name args` as
+  raw Haskell code. The legacy `#BEGINSUPER`/`#ENDSUPER` syntax is also supported.
 - Layout is mandatory; semicolons are no longer used to terminate declarations
   or alternatives.
 - If you want float correctness in lists, use `toFloat/fromFloat` or
