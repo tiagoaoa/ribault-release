@@ -244,11 +244,10 @@ visitExpr = \case
     pure me
 
   -- <<< SUPER-INSTRUCTION SUPPORT >>>
-  Super nm kind inp out _body -> do
+  Super nm inputs _body -> do
     me <- fresh
-    let k = case kind of { SuperSingle -> "single"; SuperParallel -> "parallel" }
-    emitNode me ("Super[" ++ k ++ "]\\nname=" ++ nm
-                 ++ "\\ninput=" ++ inp ++ "\\noutput=" ++ out)
+    emitNode me ("Super\\nname=" ++ nm
+                 ++ "\\ninputs=" ++ intercalate "," inputs)
     pure me
   where
     -- | Emit a leaf node with a given label and return its 'NodeId'.

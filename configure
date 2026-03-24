@@ -105,8 +105,8 @@ find_tool() {
 
     ok "$path  ($ver)"
     eval "HAVE_${label}=1"
-    eval "PATH_${label}=$path"
-    eval "VER_${label}=$ver"
+    eval "PATH_${label}='$path'"
+    eval "VER_${label}='$ver'"
     return 0
 }
 
@@ -121,7 +121,7 @@ find_tool ALEX    "$ALEX"    yes
 find_tool HAPPY   "$HAPPY"   yes
 find_tool GCC     "$GCC"     yes
 find_tool PYTHON3 "$PYTHON3" yes "3.6" "--version"
-find_tool MAKE    "make"     yes "--version"
+find_tool MAKE    "make"     yes ""  "--version"
 
 # ══════════════════════════════════════════════════════════════
 # 2. GHC packages

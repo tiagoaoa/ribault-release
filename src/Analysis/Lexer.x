@@ -82,8 +82,12 @@ tokens :-
 -- NOTE: ';' is no longer a source-level separator. Layout will insert TokenSemi.
 <0> ";"                             { skip }
 
--- Super keyword (normal mode only)
+-- Super keywords (normal mode only)
 <0> "super"                         { actEmit TokenSuper }
+<0> "single"                        { actEmit TokenSingle }
+<0> "parallel"                      { actEmit TokenParallel }
+<0> "input"                         { actEmit TokenInput }
+<0> "output"                        { actEmit TokenOutput }
 
 -- Literals (normal mode only)
 <0> $digit+ "." $digit+             { \i n -> actEmitLex (\s -> TokenFloat (read s)) i n }
@@ -105,7 +109,8 @@ data Token
   | TokenCase | TokenOf
   | TokenNot
   | TokenBool Bool
-  | TokenSuper
+  | TokenSuper | TokenSingle | TokenParallel
+  | TokenInput | TokenOutput
   | TokenSuperBody String
   | TokenArrow
   | TokenEq | TokenNeq | TokenLe | TokenGe | TokenLt | TokenGt
@@ -183,10 +188,16 @@ actEmit t _ _ = do
       let st' = case t of
             TokenOf    -> st { stLastTok = Just t, stNeedLayout = True }
             TokenLet   -> st { stLastTok = Just t, stNeedLayout = True }
-            TokenSuper -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = True }
+            TokenSuper    -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = True }
+            -- Legacy super header tokens: single/parallel preserve stInSuper
+            -- but input/output clear it (so the '(' in 'input(x)' is normal)
+            TokenSingle   -> st { stLastTok = Just t, stNeedLayout = False }
+            TokenParallel -> st { stLastTok = Just t, stNeedLayout = False }
+            TokenInput    -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = False }
+            TokenOutput   -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = False }
             -- Non-ident tokens clear the super header context
             -- (ident tokens are handled by actEmitLex, which preserves stInSuper)
-            _          -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = False }
+            _             -> st { stLastTok = Just t, stNeedLayout = False, stInSuper = False }
       alexSetUserState st'
       pure t
 
