@@ -1,0 +1,67 @@
+-- Adaptive parallel merge sort
+--
+-- The recursion tree splits via dataflow coordination down to
+-- depth = log2(P). At that depth, exactly P leaf super-instructions
+-- fire, each performing a full sequential sort compiled by GHC -O2.
+--
+-- P = 8:  cutoff = 3  →  8 leaf supers
+-- P = 4:  cutoff = 2  →  4 leaf supers
+-- P = 16: cutoff = 4  →  16 leaf supers
+--
+-- Above cutoff: lightweight dataflow nodes (split, merge, steer)
+-- At cutoff:    GHC-compiled super-instruction (sequential sort)
+
+cutoff = 3
+
+merge xs ys = case xs of
+  [] -> ys
+  (x:xt) -> case ys of
+    [] -> xs
+    (y:yt) -> if x <= y
+              then x : merge xt ys
+              else y : merge xs yt
+
+split xs = case xs of
+  []       -> ([], [])
+  (x:[])   -> ([x], [])
+  (x:y:zs) ->
+    case split zs of
+      (ls, rs) -> (x:ls, y:rs)
+
+msort xs level = case xs of
+  []     -> []
+  (x:[]) -> [x]
+  _      ->
+    if level == cutoff
+    then
+      super seqSort xs (
+        seqSort xs =
+          let
+            hlist = toList xs
+
+            splitL []         = ([], [])
+            splitL [x]        = ([x], [])
+            splitL (x:y:rest) =
+              let (as, bs) = splitL rest
+              in (x:as, y:bs)
+
+            mergeL [] ys        = ys
+            mergeL xs []        = xs
+            mergeL (x:xt) (y:yt)
+              | x <= y          = x : mergeL xt (y:yt)
+              | otherwise       = y : mergeL (x:xt) yt
+
+            ms []  = []
+            ms [x] = [x]
+            ms xs  =
+              let (l, r) = splitL xs
+              in mergeL (ms l) (ms r)
+          in
+            fromList (ms hlist)
+      )
+    else
+      case split xs of
+        (left, right) ->
+          merge (msort left (level + 1)) (msort right (level + 1))
+
+main = msort [34,7,23,32,5,62,1,9,8,4,3,11,42,15,28,6,19,50,2,17] 0

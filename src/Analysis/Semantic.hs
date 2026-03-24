@@ -153,7 +153,9 @@ checkExpr sig env expr = case expr of
   Tuple xs ->
     concatMap (checkExpr sig env) xs
   Super _ inputs _ ->
-    [UndefinedVar v | v <- inputs, not (Set.member v env || Map.member v sig)]
+    -- First element is the function name (defined in the body), rest are input variables
+    let args = drop 1 inputs
+    in [UndefinedVar v | v <- args, not (Set.member v env || Map.member v sig)]
 
 -- | Check a single case alternative (pattern + branch body).
 checkAlt :: Sig -> Env -> (Pattern, Expr) -> [SemanticError]
@@ -307,7 +309,8 @@ inferExpr fenv tenv expr = case expr of
     return (TList eltTy)
   Tuple xs -> TTuple <$> mapM (inferExpr fenv tenv) xs
   Super _ inputs _ ->
-    case inputs of
+    -- First element is function name; look up first actual arg for type
+    case drop 1 inputs of
       (inId:_) -> case Map.lookup inId tenv of
                     Just t  -> return t
                     Nothing -> freshTypeVar
