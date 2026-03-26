@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ──────────────────────────────────────────────────────────────
-# run_tests.sh — Compile (and optionally execute) all test/*.hsk
+# run_tests.sh — Compile (and optionally execute) all test/*.hss
 # ──────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TALM_DIR="${ROOT}/TALM"
 EXECUTE=0
-FILTER="*.hsk"
+FILTER="*.hss"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -40,7 +40,7 @@ PASS=0; FAIL=0; SKIP=0
 
 for hsk in "$ROOT"/test/$FILTER; do
     [ -f "$hsk" ] || continue
-    name="$(basename "$hsk" .hsk)"
+    name="$(basename "$hsk" .hss)"
     printf "  %-40s " "$name"
     tmp=$(mktemp -d)
 

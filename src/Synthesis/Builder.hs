@@ -509,6 +509,16 @@ builtinListTail = 2
 builtinListIsNil :: Int
 builtinListIsNil = 3
 
+-- Builtin print supers: s4..s9
+builtinPrint, builtinPrintList, builtinPrintStr :: Int
+builtinPrintFloat, builtinPrintFloatList, builtinPrintFloatMatrix :: Int
+builtinPrint            = 4
+builtinPrintList        = 5
+builtinPrintStr         = 6
+builtinPrintFloat       = 7
+builtinPrintFloatList   = 8
+builtinPrintFloatMatrix = 9
+
 superNameFromNum :: Int -> String
 superNameFromNum n = "s" ++ show n
 
@@ -942,6 +952,20 @@ bindFormal fun i formal actual = do
 -- | Apply a function or lambda to argument expressions.
 goApp :: Expr -> [Expr] -> Build Port
 goApp fun args = case fun of
+  -- Built-in print variants
+  Var p | p `elem` ["print","prints","printl","printf","printlf","printmf"]
+        , length args == 1 -> do
+    pArg <- goExpr (head args)
+    let sn = case p of
+               "print"   -> builtinPrint
+               "prints"  -> builtinPrintStr
+               "printl"  -> builtinPrintList
+               "printf"  -> builtinPrintFloat
+               "printlf" -> builtinPrintFloatList
+               "printmf" -> builtinPrintFloatMatrix
+               _         -> builtinPrint
+    callBuiltinSuper sn [pArg]
+
   Var f -> do
     argv0 <- mapM goExpr args
     argv1 <- mapM guardIfNeeded argv0

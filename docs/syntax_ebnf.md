@@ -1,150 +1,114 @@
 # Ribault Language Syntax (EBNF)
 
-This document is a formal description of the surface syntax accepted by the
-parser in `src/Analysis/Parser.y` and lexer in `src/Analysis/Lexer.x`.
+Formal description of the surface syntax accepted by `src/Analysis/Parser.y`
+and `src/Analysis/Lexer.x`.
 
-Notation:
-- `{ X }` means zero or more repetitions of `X`.
-- `[ X ]` means optional `X`.
-- `|` means alternatives.
-- Terminals are in quotes.
+Notation: `{ X }` = zero or more; `[ X ]` = optional; `|` = alternatives.
 
 ## Lexical
 
-```
-letter      = "A".."Z" | "a".."z" ;
-digit       = "0".."9" ;
-idchar      = letter | digit | "_" | "'" ;
-ident       = letter , { idchar } ;
-
-int_lit     = digit , { digit } ;
-float_lit   = digit , { digit } , "." , digit , { digit } ;
-char_lit    = "'" , ( ? any char except ' and \ ? | escape ) , "'" ;
-string_lit  = "\"" , { ? any char or escape except " ? } , "\"" ;
-
-comment     = "--" , { ? any char except newline ? } ;
-whitespace  = " " | "\t" | "\r" | "\n" ;
-```
+    letter      = "A".."Z" | "a".."z" ;
+    digit       = "0".."9" ;
+    idchar      = letter | digit | "_" | "'" ;
+    ident       = letter , { idchar } ;
+    int_lit     = digit , { digit } ;
+    float_lit   = digit , { digit } , "." , digit , { digit } ;
+    comment     = "--" , { any char except newline } ;
 
 ## Program structure
 
-```
-program     = decl_list ;
+    program     = decl_list ;
+    decl_list   = decl , { decl } ;
+    decl        = ident , params , "=" , expr
+                | "(" , pattern , "," , pattern , ")" , "=" , expr ;
+    params      = { ident } ;
 
-decl_list   = decl , { decl } ;
-
-decl        = ident , params , "=" , expr ;
-params      = { ident } ;
-```
-
-Note: the real parser uses **layout (indentation)** instead of semicolons.
-The EBNF above omits layout rules; a new declaration starts when indentation
-returns to the previous level.
+Layout (indentation) delimits blocks. No semicolons.
 
 ## Expressions
 
-```
-expr        = lambda
-            | if_expr
-            | case_expr
-            | let_expr
-            | expr_or
-            | expr , ":" , expr ;
+    expr        = lambda | if_expr | case_expr | let_expr
+                | super_expr | expr_or | expr , ":" , expr ;
 
-lambda      = "\" , lam_params , "->" , expr ;
-lam_params  = params | "(" , ident_list , ")" ;
-ident_list  = ident , { "," , ident } ;
+    lambda      = "\" , lam_params , "->" , expr ;
+    lam_params  = params | "(" , ident_list , ")" ;
+    ident_list  = ident , { "," , ident } ;
 
-if_expr     = "if" , expr , "then" , expr , "else" , expr ;
+    if_expr     = "if" , expr , "then" , expr , "else" , expr ;
+    case_expr   = "case" , expr , "of" , alt , { alt } ;
+    alt         = pattern , "->" , expr ;
+    let_expr    = "let" , decl_list , "in" , expr ;
 
-case_expr   = "case" , expr , "of" , alts ;
-alts        = alt_list ;
-alt_list    = alt , { alt } ;
-alt         = pattern , "->" , expr ;
+    expr_or     = expr_and , { "||" , expr_and } ;
+    expr_and    = expr_eq  , { "&&" , expr_eq  } ;
+    expr_eq     = expr_rel , { ( "==" | "/=" ) , expr_rel } ;
+    expr_rel    = expr_add , { ( "<" | "<=" | ">" | ">=" ) , expr_add } ;
+    expr_add    = expr_mul , { ( "+" | "-" ) , expr_mul } ;
+    expr_mul    = expr_unary , { ( "*" | "/" | "%" ) , expr_unary } ;
+    expr_unary  = "not" , expr_unary | "-" , expr_unary | expr_app ;
+    expr_app    = atom , { atom } ;
 
-let_expr    = "let" , decl_list , "in" , expr ;
+## Atoms
 
-expr_or     = expr_and , { "||" , expr_and } ;
-expr_and    = expr_eq  , { "&&" , expr_eq  } ;
-expr_eq     = expr_rel , { eq_op , expr_rel } ;
-eq_op       = "==" | "/=" ;
+    atom        = literal | ident | "(" , expr , ")"
+                | "[" , [ expr , { "," , expr } ] , "]"
+                | "(" , expr , "," , expr , { "," , expr } , ")" ;
 
-expr_rel    = expr_add , { rel_op , expr_add } ;
-rel_op      = "<" | "<=" | ">" | ">=" ;
+    literal     = int_lit | float_lit | "True" | "False" ;
 
-expr_add    = expr_mul , { add_op , expr_mul } ;
-add_op      = "+" | "-" ;
+Only pair tuples `(a,b)` are supported at runtime.
 
-expr_mul    = expr_unary , { mul_op , expr_unary } ;
-mul_op      = "*" | "/" | "%" ;
+## Super instructions
 
-expr_unary  = "not" , expr_unary
-            | "-"   , expr_unary
-            | expr_app ;
+    super_expr  = "super" , ident , { ident } , "(" , super_body , ")"
+                | "super" , ( "single" | "parallel" ) ,
+                  "input" , "(" , ident , ")" ,
+                  "output" , "(" , ident , ")" , legacy_body ;
 
-expr_app    = atom , { atom } ;
-```
+    super_body  = balanced Haskell code (parens tracked by lexer) ;
+    legacy_body = "#BEGINSUPER" , any text , "#ENDSUPER" ;
 
-## Atoms, literals, lists, tuples, supers
+Primary syntax:
 
-```
-atom        = literal
-            | ident
-            | "(" , expr , ")"
-            | list
-            | tuple
-            | super_expr ;
+    result = super implName arg1 arg2 (
+        implName a b = someExpression a b
+    )
 
-literal     = int_lit | float_lit | char_lit | string_lit
-            | "True" | "False" ;
+The body is delimited by balanced parentheses and compiled by GHC.
 
-list        = "[" , [ expr_list ] , "]" ;
-expr_list   = expr , { "," , expr } ;
+## Built-in print functions
 
-tuple       = "(" , expr , "," , expr , { "," , expr } , ")" ;
+Each prints the value and returns it (no super needed):
 
-super_expr  = "super" , super_kind ,
-              "input"  , "(" , ident , ")" ,
-              "output" , "(" , ident , ")" ,
-              super_body ;
-
-super_kind  = "single" | "parallel" ;
-
-super_body  = "#BEGINSUPER" , super_text , "#ENDSUPER" ;
-super_text  = { ? any character including newlines ? } ;
-```
+    print x      -- integer (Int64)
+    prints xs    -- list of ASCII codes as string
+    printl xs    -- list of integers
+    printf x     -- float
+    printlf xs   -- list of floats
+    printmf xs   -- matrix (list of list of floats)
 
 ## Patterns
 
-```
-pattern     = "_"
-            | ident
-            | literal
-            | pattern , ":" , pattern
-            | list_pattern
-            | tuple_pattern ;
+    pattern     = "_" | ident | literal
+                | pattern , ":" , pattern
+                | "[" , [ pattern , { "," , pattern } ] , "]"
+                | "(" , pattern , "," , pattern , { "," , pattern } , ")" ;
 
-list_pattern = "[" , [ pattern_list ] , "]" ;
-pattern_list = pattern , { "," , pattern } ;
+## Let-pattern destructuring
 
-tuple_pattern = "(" , pattern , pattern_tuple_tail , ")" ;
-pattern_tuple_tail = "," , pattern , { "," , pattern } ;
-```
+    let (a, b) = expr in body
 
-Note: only **pair tuples** `(a,b)` are represented correctly at runtime.
-Larger tuples are parsed but not supported by the compiler backend.
+Desugared to `let _pat = expr in case _pat of (a, b) -> body`.
 
-## Precedence and associativity (informal)
+## Precedence (lowest to highest)
 
-From lowest to highest:
-- `||`
-- `&&`
-- `==`, `/=`
-- `<`, `<=`, `>`, `>=`
-- `+`, `-`
-- `*`, `/`, `%`
-- unary `not`, unary `-`
-- application (left-associative)
-- `:` (right-associative)
+    ||  &&  == /=  < <= > >=  + -  * / %  not (unary -)  application  : (cons)
 
-This matches the precedence declarations in `Parser.y`.
+## Reserved words
+
+    case else if in let of then not super single parallel input output
+    True False print prints printl printf printlf printmf
+
+## File extension
+
+Ribault source files use `.hss`.

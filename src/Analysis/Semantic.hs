@@ -508,9 +508,9 @@ assignSuperNames :: Program -> Program
 assignSuperNames (Program ds) =
   Program (evalState (mapM goDecl ds) superBase)
   where
-    -- Reserve s0..s3 for builtin list/pair supers.
+    -- Reserve s0..s3 for list ops, s4..s9 for print variants.
     superBase :: Int
-    superBase = 4
+    superBase = 10
     goDecl (FunDecl f ps e) = FunDecl f ps <$> goExpr e
     goDecl (PatDecl pat e)  = PatDecl pat <$> goExpr e
     goExpr :: Expr -> State Int Expr

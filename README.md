@@ -38,7 +38,7 @@ heap, no spark pool, and no stop-the-world garbage collection.
 ### Architecture
 
 ```
-H_sub source (.hsk)
+H_sub source (.hss)
     │
     ▼
 ┌──────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
@@ -108,7 +108,7 @@ ribault-release/
 ├── TALM/
 │   ├── asm/               # FlowASM assembler (assembler.py, flowasm.py, ...)
 │   └── interp/            # Trebuchet interpreter (interp.c, queue.c, Makefile, ...)
-├── test/                  # 30 test programs (.hsk)
+├── test/                  # 30 test programs (.hss)
 ├── tools/                 # Super-instruction build helpers
 ├── benchmarks/            # run_tests.sh, run_benchmarks.sh
 ├── results/paper/         # CSV data from all 3 paper benchmarks
@@ -136,7 +136,7 @@ psum xs level =
 
 Above `cutoff`: dataflow coordination (split, add). At `cutoff`: each
 subproblem fires as a GHC-compiled super-instruction.
-See `test/29_mergesort_adaptive.hsk` for a full merge sort example.
+See `test/29_mergesort_adaptive.hss` for a full merge sort example.
 
 ## Usage
 
@@ -144,20 +144,20 @@ See `test/29_mergesort_adaptive.hsk` for a full merge sort example.
 
 ```bash
 # Using the ribault CLI
-./ribault compile myprogram.hsk --output-dir /tmp/out
-./ribault run myprogram.hsk --threads 8
+./ribault compile myprogram.hss --output-dir /tmp/out
+./ribault run myprogram.hss --threads 8
 
 # Visualize
-./ribault ast myprogram.hsk --png     # AST graph
-./ribault df  myprogram.hsk --png     # Dataflow graph
+./ribault ast myprogram.hss --png     # AST graph
+./ribault df  myprogram.hss --png     # Dataflow graph
 ```
 
 ### Step-by-step (manual)
 
 ```bash
-./codegen   myprogram.hsk > prog.fl                               # compile
-./supersgen myprogram.hsk > Supers.hs                             # extract supers
-tools/build_supers.sh myprogram.hsk Supers.hs                     # build libsupers.so
+./codegen   myprogram.hss > prog.fl                               # compile
+./supersgen myprogram.hss > Supers.hs                             # extract supers
+tools/build_supers.sh myprogram.hss Supers.hs                     # build libsupers.so
 python3 TALM/asm/assembler.py -a -n 8 -o prog prog.fl             # assemble
 TALM/interp/interp 8 prog.flb prog_auto.pla ./libsupers.so        # execute
 ```
@@ -183,8 +183,8 @@ make
 sudo make install
 
 # Then use from anywhere:
-ribault compile myprogram.hsk
-ribault run myprogram.hsk --threads 8
+ribault compile myprogram.hss
+ribault run myprogram.hss --threads 8
 ```
 
 ## Experiment Results

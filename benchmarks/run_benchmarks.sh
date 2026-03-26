@@ -38,12 +38,12 @@ echo " Output:  $OUTPUT_DIR"
 echo "══════════════════════════════════════════════════════════"
 echo ""
 
-# Scan scripts/ for benchmark directories containing .hsk files
+# Scan scripts/ for benchmark directories containing .hss files
 found=0
 for bench_dir in "$ROOT"/scripts/*/; do
     [ -d "$bench_dir" ] || continue
     shopt -s nullglob
-    hsk_files=("$bench_dir"*.hsk)
+    hsk_files=("$bench_dir"*.hss)
     shopt -u nullglob
     [ ${#hsk_files[@]} -eq 0 ] && continue
 
@@ -54,7 +54,7 @@ for bench_dir in "$ROOT"/scripts/*/; do
     echo "P,variant,rep,time_s" > "$csv"
 
     for hsk in "${hsk_files[@]}"; do
-        variant="$(basename "$hsk" .hsk)"
+        variant="$(basename "$hsk" .hss)"
         for P in $THREADS; do
             for r in $(seq 1 "$REPS"); do
                 tmp=$(mktemp -d)
@@ -81,7 +81,7 @@ for bench_dir in "$ROOT"/scripts/*/; do
     echo ""
 done
 
-[ "$found" -eq 1 ] || echo "No benchmark .hsk files found in scripts/*/"
+[ "$found" -eq 1 ] || echo "No benchmark .hss files found in scripts/*/"
 
 echo "══════════════════════════════════════════════════════════"
 echo " Done. Results: $OUTPUT_DIR"

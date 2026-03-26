@@ -91,7 +91,7 @@ psum xs level = case xs of
 
 Above the cutoff: lightweight dataflow coordination nodes.
 At the cutoff: GHC-compiled native code in each leaf super.
-See `test/29_mergesort_adaptive.hsk` for a complete merge sort example.
+See `test/29_mergesort_adaptive.hss` for a complete merge sort example.
 
 Legacy syntax (`#BEGINSUPER`/`#ENDSUPER`) is still supported for backward
 compatibility:
@@ -180,13 +180,13 @@ There are four main artifacts:
 You can generate them manually (replace `/path/to/TALM` with your path):
 
 ```
-./codegen program.hsk > program.fl
+./codegen program.hss > program.fl
 python3 /path/to/TALM/asm/assembler.py -n <P> -o program program.fl
-./supersgen program.hsk > Supers.hs
+./supersgen program.hss > Supers.hs
 CPPFLAGS=$(cat build/ghc-shim/.cppflags) C_INCLUDE_PATH=$(cat build/ghc-shim/.cpath) \
 CPATH=$(cat build/ghc-shim/.cpath) GHC_LIBDIR=build/ghc-shim \
 RTS_SO=$PWD/build/ghc-shim/rts/libHSrts-ghc$(ghc --numeric-version).so \
-./tools/build_supers.sh program.hsk Supers.hs
+./tools/build_supers.sh program.hss Supers.hs
 ```
 
 This produces:
@@ -210,7 +210,7 @@ TALM/interp/interp 1 program.flb program.pla libsupers.so
 
 ## 8) Generating from a new program (not in test/)
 
-1) Write your `program.hsk`
+1) Write your `program.hss`
 2) Run the toolchain above (codegen + assembler + supersgen + build_supers)
 3) Execute with `TALM/interp/interp`
 

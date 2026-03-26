@@ -81,19 +81,22 @@ EXE_AST      := analysis
 EXE_DF       := synthesis
 EXE_CODE     := codegen
 EXE_SUPERS   := supersgen
+EXE_RIBAULT  := ribault-bin
+
+MAIN_RIBAULT_HS := $(SRC_DIR)/Synthesis/MainRibault.hs
 
 # GHC flags
 GHC_PKGS     := -package mtl -package array -package containers -package text
 GHC_FLAGS    := -O2 $(GHC_PKGS)
 
 # ── Test programs ────────────────────────────────────────────
-TESTS        := $(wildcard $(TEST_DIR)/*.hsk)
+TESTS        := $(wildcard $(TEST_DIR)/*.hss)
 
-DF_DOTS      := $(patsubst $(TEST_DIR)/%.hsk,$(DF_OUT_DIR)/%.dot,$(TESTS))
+DF_DOTS      := $(patsubst $(TEST_DIR)/%.hss,$(DF_OUT_DIR)/%.dot,$(TESTS))
 DF_IMGS      := $(patsubst $(DF_OUT_DIR)/%.dot,$(DF_IMG_DIR)/%.png,$(DF_DOTS))
-AST_DOTS     := $(patsubst $(TEST_DIR)/%.hsk,$(AST_OUT_DIR)/%.dot,$(TESTS))
+AST_DOTS     := $(patsubst $(TEST_DIR)/%.hss,$(AST_OUT_DIR)/%.dot,$(TESTS))
 AST_IMGS     := $(patsubst $(AST_OUT_DIR)/%.dot,$(AST_IMG_DIR)/%.png,$(AST_DOTS))
-CODE_FL      := $(patsubst $(TEST_DIR)/%.hsk,$(CODE_OUT_DIR)/%.fl,$(TESTS))
+CODE_FL      := $(patsubst $(TEST_DIR)/%.hss,$(CODE_OUT_DIR)/%.fl,$(TESTS))
 
 # ── Supers config ────────────────────────────────────────────
 GHC_VER             ?= $(shell $(GHC) --numeric-version 2>/dev/null)
@@ -110,9 +113,9 @@ SUPERS_WRAPPERS_MAX ?= 256
 
 all: compiler interp
 
-compiler: $(EXE_AST) $(EXE_DF) $(EXE_CODE) $(EXE_SUPERS)
+compiler: $(EXE_AST) $(EXE_DF) $(EXE_CODE) $(EXE_SUPERS) $(EXE_RIBAULT)
 	@echo ""
-	@echo "Ribault compiler built: $(EXE_AST) $(EXE_DF) $(EXE_CODE) $(EXE_SUPERS)"
+	@echo "Ribault compiler built: $(EXE_AST) $(EXE_DF) $(EXE_CODE) $(EXE_SUPERS) $(EXE_RIBAULT)"
 
 help:
 	@echo "Ribault + TALM build system"
@@ -122,7 +125,7 @@ help:
 	@echo "  make               Build compiler + Trebuchet interpreter"
 	@echo "  make compiler      Build Ribault compiler only"
 	@echo "  make interp        Build Trebuchet interpreter only"
-	@echo "  make test          Correctness tests (compile all test/*.hsk)"
+	@echo "  make test          Correctness tests (compile all test/*.hss)"
 	@echo "  make test-execute  Correctness tests + execute on Trebuchet"
 	@echo "  make supers        Build super-instruction libraries for tests"
 	@echo "  make df            Generate dataflow .dot + .png for tests"
@@ -212,6 +215,20 @@ $(EXE_SUPERS): $(LEXER_HS) $(PARSER_HS) $(SYNTAX_HS) $(SEMANTIC_HS) \
 	  $(SUPERS_EXTRACT) $(SUPERS_EMIT)
 	@chmod +x $@
 
+$(EXE_RIBAULT): $(LEXER_HS) $(PARSER_HS) $(SYNTAX_HS) $(SEMANTIC_HS) \
+                $(BUILDER_HS) $(CODEGEN_HS) $(UNIQUE_HS) \
+                $(TYPES_HS) $(PORT_HS) $(NODE_HS) \
+                $(MAIN_RIBAULT_HS)
+	@echo "[GHC  ] $@"
+	@mkdir -p $(EXE_RIBAULT).obj $(EXE_RIBAULT).hi
+	$(GHC) $(GHC_FLAGS) -package process -package directory -package filepath -package text \
+	  -odir $(EXE_RIBAULT).obj -hidir $(EXE_RIBAULT).hi \
+	  -o $@ \
+	  $(MAIN_RIBAULT_HS) $(LEXER_HS) $(PARSER_HS) \
+	  $(SYNTAX_HS) $(SEMANTIC_HS) \
+	  $(BUILDER_HS) $(CODEGEN_HS) $(UNIQUE_HS) \
+	  $(TYPES_HS) $(PORT_HS) $(NODE_HS)
+
 # ════════════════════════════════════════════════════════════════
 # SUPERS (GHC shim + libsupers.so for test programs)
 # ════════════════════════════════════════════════════════════════
@@ -298,7 +315,7 @@ df: $(DF_DOTS) $(DF_IMGS)
 ast: $(AST_DOTS) $(AST_IMGS)
 code: $(CODE_FL)
 
-$(DF_OUT_DIR)/%.dot: $(TEST_DIR)/%.hsk | $(EXE_DF)
+$(DF_OUT_DIR)/%.dot: $(TEST_DIR)/%.hss | $(EXE_DF)
 	@mkdir -p $(DF_OUT_DIR)
 	@echo "[DF   ] $< → $@"
 	./$(EXE_DF) $< > $@
@@ -308,7 +325,7 @@ $(DF_IMG_DIR)/%.png: $(DF_OUT_DIR)/%.dot
 	@echo "[PNG  ] $< → $@"
 	$(DOT) -Tpng $< -o $@
 
-$(AST_OUT_DIR)/%.dot: $(TEST_DIR)/%.hsk | $(EXE_AST)
+$(AST_OUT_DIR)/%.dot: $(TEST_DIR)/%.hss | $(EXE_AST)
 	@mkdir -p $(AST_OUT_DIR)
 	@echo "[AST  ] $< → $@"
 	./$(EXE_AST) $< > $@
@@ -318,7 +335,7 @@ $(AST_IMG_DIR)/%.png: $(AST_OUT_DIR)/%.dot
 	@echo "[PNG  ] $< → $@"
 	$(DOT) -Tpng $< -o $@
 
-$(CODE_OUT_DIR)/%.fl: $(TEST_DIR)/%.hsk | $(EXE_CODE)
+$(CODE_OUT_DIR)/%.fl: $(TEST_DIR)/%.hss | $(EXE_CODE)
 	@mkdir -p $(CODE_OUT_DIR)
 	@echo "[TALM ] $< → $@"
 	./$(EXE_CODE) $< > $@
@@ -332,9 +349,9 @@ test: $(EXE_AST) $(EXE_DF) $(EXE_CODE)
 	@echo " Ribault Correctness Tests"
 	@echo "══════════════════════════════════════════════════════"
 	@PASS=0; FAIL=0; \
-	for hsk in $(TEST_DIR)/*.hsk; do \
+	for hsk in $(TEST_DIR)/*.hss; do \
 		[ -f "$$hsk" ] || continue; \
-		name=$$(basename "$$hsk" .hsk); \
+		name=$$(basename "$$hsk" .hss); \
 		printf "  %-40s " "$$name"; \
 		tmp=$$(mktemp -d); \
 		if ./$(EXE_AST) "$$hsk" > "$$tmp/ast.dot" 2>/dev/null \
@@ -384,7 +401,7 @@ install: compiler
 	install -m 755 tools/*.sh $(LIBDIR)/tools/ 2>/dev/null || true
 	install -m 644 tools/*.py $(LIBDIR)/tools/ 2>/dev/null || true
 	install -m 644 tools/*.c  $(LIBDIR)/tools/ 2>/dev/null || true
-	install -m 644 $(TEST_DIR)/*.hsk $(DATADIR)/test/ 2>/dev/null || true
+	install -m 644 $(TEST_DIR)/*.hss $(DATADIR)/test/ 2>/dev/null || true
 	install -m 755 benchmarks/*.sh $(DATADIR)/benchmarks/ 2>/dev/null || true
 	@echo "Done. Binaries in $(BINDIR)/, libraries in $(LIBDIR)/"
 
@@ -415,9 +432,10 @@ dist:
 # ════════════════════════════════════════════════════════════════
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -rf $(EXE_AST) $(EXE_DF) $(EXE_CODE) $(EXE_SUPERS)
+	@rm -rf $(EXE_AST) $(EXE_DF) $(EXE_CODE) $(EXE_SUPERS) $(EXE_RIBAULT)
 	@rm -rf $(EXE_AST).obj $(EXE_AST).hi $(EXE_DF).obj $(EXE_DF).hi
 	@rm -rf $(EXE_CODE).obj $(EXE_CODE).hi $(EXE_SUPERS).obj $(EXE_SUPERS).hi
+	@rm -rf $(EXE_RIBAULT).obj $(EXE_RIBAULT).hi
 	@rm -f $(LEXER_HS) $(PARSER_HS)
 	@rm -rf $(SRC_DIR)/Analysis/*.hi $(SRC_DIR)/Analysis/*.o
 	@rm -rf $(SRC_DIR)/Synthesis/*.hi $(SRC_DIR)/Synthesis/*.o

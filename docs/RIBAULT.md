@@ -213,7 +213,7 @@ make               # builds compiler + Trebuchet interpreter
 make test          # compiles all 30 test programs
 
 # Run Fibonacci on 4 threads:
-./ribault run test/10_fibonacci.hsk --threads 4
+./ribault run test/10_fibonacci.hss --threads 4
 ```
 
 The compiler is MIT-licensed. The TALM runtime (Trebuchet interpreter + FlowASM assembler) is LGPL-3.0: modifications to the runtime must be shared, but programs running on it are not encumbered.

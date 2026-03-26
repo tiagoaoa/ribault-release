@@ -185,20 +185,20 @@ and runs it on the Trebuchet interpreter.
 
 ```bash
 # Compile to TALM assembly
-./codegen test/10_fibonacci.hsk > /tmp/fib.fl
+./codegen test/10_fibonacci.hss > /tmp/fib.fl
 
 # View the dataflow graph
-./synthesis test/10_fibonacci.hsk    # prints .dot to stdout
+./synthesis test/10_fibonacci.hss    # prints .dot to stdout
 
 # Full compile + run (using the ribault CLI)
-./ribault run test/10_fibonacci.hsk --threads 4
+./ribault run test/10_fibonacci.hss --threads 4
 ```
 
 ---
 
 ## 6. Try your own program
 
-Create a file `myprogram.hsk` in the H_sub language:
+Create a file `myprogram.hss` in the H_sub language:
 
 ```haskell
 -- Recursive factorial
@@ -214,15 +214,15 @@ Then:
 
 ```bash
 # Compile
-./ribault compile myprogram.hsk --output-dir /tmp/myout
+./ribault compile myprogram.hss --output-dir /tmp/myout
 
 # Run on Trebuchet with 4 threads
-./ribault run myprogram.hsk --threads 4
+./ribault run myprogram.hss --threads 4
 
 # Or step by step:
-./analysis  myprogram.hsk               # check syntax
-./synthesis myprogram.hsk > my.df.dot    # dataflow graph
-./codegen   myprogram.hsk > my.fl        # TALM assembly
+./analysis  myprogram.hss               # check syntax
+./synthesis myprogram.hss > my.df.dot    # dataflow graph
+./codegen   myprogram.hss > my.fl        # TALM assembly
 
 # Assemble and execute
 python3 TALM/asm/assembler.py -a -n 4 -o /tmp/my my.fl
@@ -235,7 +235,7 @@ TALM/interp/interp 4 /tmp/my.flb /tmp/my_auto.pla /path/to/libsupers.so
 ## 7. Benchmarks
 
 ```bash
-# Run performance benchmarks (scans scripts/ for .hsk benchmarks)
+# Run performance benchmarks (scans scripts/ for .hss benchmarks)
 make bench
 
 # Custom thread counts and repetitions
@@ -268,8 +268,8 @@ make install    # no sudo needed for ~/.local
 After install:
 
 ```bash
-ribault compile myprogram.hsk
-ribault run myprogram.hsk --threads 8
+ribault compile myprogram.hss
+ribault run myprogram.hss --threads 8
 ribault info     # show installed tool paths
 ```
 
@@ -291,8 +291,8 @@ make ast    # → test/ast-output/*.dot + test/ast-images/*.png
 make df     # → test/df-output/*.dot + test/df-images/*.png
 
 # Single program
-./ribault ast myprogram.hsk --png
-./ribault df  myprogram.hsk --png
+./ribault ast myprogram.hss --png
+./ribault df  myprogram.hss --png
 ```
 
 ---
@@ -320,9 +320,9 @@ ghcup install ghc 9.6.6 --force
 **`make test` reports failures:**
 → Run the failing test manually to see the error:
 ```bash
-./analysis test/FAILING_TEST.hsk
-./synthesis test/FAILING_TEST.hsk
-./codegen test/FAILING_TEST.hsk
+./analysis test/FAILING_TEST.hss
+./synthesis test/FAILING_TEST.hss
+./codegen test/FAILING_TEST.hss
 ```
 
 **`make bench` says "Trebuchet not built":**

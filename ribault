@@ -36,17 +36,17 @@ usage() {
 Ribault $VERSION — Haskell-to-Dataflow Compiler
 
 Usage:
-  ribault compile  PROG.hsk [--output-dir DIR]
-  ribault run      PROG.hsk [--threads P] [--output-dir DIR]
-  ribault ast      PROG.hsk [--png]
-  ribault df       PROG.hsk [--png]
+  ribault compile  PROG.hss [--output-dir DIR]
+  ribault run      PROG.hss [--threads P] [--output-dir DIR]
+  ribault ast      PROG.hss [--png]
+  ribault df       PROG.hss [--png]
   ribault test     [--execute] [--filter PATTERN]
   ribault bench    [--threads LIST] [--reps N] [--benchmark NAME]
   ribault info
   ribault version
 
 Commands:
-  compile    Compile .hsk → TALM assembly (.fl) + super-instructions (libsupers.so)
+  compile    Compile .hss → TALM assembly (.fl) + super-instructions (libsupers.so)
   run        Compile + assemble + execute on Trebuchet
   ast        Generate AST (.dot and optionally .png)
   df         Generate dataflow graph (.dot and optionally .png)
@@ -74,7 +74,7 @@ cmd_compile() {
     done
 
     local name
-    name="$(basename "$hsk" .hsk)"
+    name="$(basename "$hsk" .hss)"
     mkdir -p "$out_dir"
 
     echo "[1/4] Parsing and analyzing..."
@@ -120,7 +120,7 @@ cmd_run() {
     fi
 
     local name
-    name="$(basename "$hsk" .hsk)"
+    name="$(basename "$hsk" .hss)"
 
     # Compile
     cmd_compile "$hsk" --output-dir "$out_dir"
@@ -160,7 +160,7 @@ cmd_ast() {
     done
 
     local name
-    name="$(basename "$hsk" .hsk)"
+    name="$(basename "$hsk" .hss)"
     "$ANALYSIS" "$hsk"
 
     if [ "$png" -eq 1 ]; then
@@ -177,7 +177,7 @@ cmd_df() {
     done
 
     local name
-    name="$(basename "$hsk" .hsk)"
+    name="$(basename "$hsk" .hss)"
     "$SYNTHESIS" "$hsk"
 
     if [ "$png" -eq 1 ]; then

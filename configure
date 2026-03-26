@@ -359,7 +359,7 @@ cat << EOF
 Next steps:
 
   make                # Build Ribault compiler + Trebuchet interpreter
-  make test           # Run correctness tests on all test/*.hsk
+  make test           # Run correctness tests on all test/*.hss
   make test-execute   # Tests + execute on Trebuchet
   make bench          # Performance benchmarks
   sudo make install   # Install to $PREFIX
